@@ -38,7 +38,8 @@ Mitigations:
 
 - Lower Roblox graphics.
 - Do not touch the mouse or keyboard during automation.
-- Increase input/glide, tab-settle, or build delays above the `20 ms` defaults.
+- Increase input/glide above its `50 ms` default, or tab-settle and build above
+  their `20 ms` defaults.
 - Keep Roblox visible and use windowed or borderless-windowed mode.
 - Supervise the run and use **Ctrl+Shift+X** when anything is wrong.
 

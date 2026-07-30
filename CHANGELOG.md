@@ -17,3 +17,5 @@ First public release.
   point 1 to point 2.
 - The setup guide now covers Center of Rails exports and Workshop creator
   permission and credit.
+- Input/glide now defaults to 50 ms; build and tab-settle remain at 20 ms.
+- Regression tests no longer depend on optional large CSV fixtures.

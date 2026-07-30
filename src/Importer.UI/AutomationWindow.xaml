@@ -147,7 +147,7 @@
                              Grid.Row="0"
                              Grid.Column="1"
                              Margin="5"
-                             Text="20"
+                             Text="50"
                              ToolTip="Minimum 60 Hz glide duration and landing hold; long moves are capped at 4,000 pixels/second" />
                     <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Text="Build delay (ms)" />
                     <TextBox x:Name="BuildDelayTextBox" Grid.Row="0" Grid.Column="3" Margin="5" Text="20" />

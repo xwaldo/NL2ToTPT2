@@ -84,8 +84,9 @@ run has to be restarted.
 Calibration is saved automatically, so it normally only needs to be done again
 if the Roblox editor layout or window size changes.
 
-The three timing settings start at `20 ms`. If Roblox misses a click, number,
-or decimal point, increase the appropriate delay:
+Input/glide starts at `50 ms`. Tab settle and Build delay start at `20 ms`. If
+Roblox misses a click, number, or decimal point, increase the appropriate
+delay:
 
 - Increase **Input/glide time** when the cursor misses a textbox.
 - Increase **Tab settle** when a value goes into the wrong group.

@@ -39,13 +39,14 @@ See the complete [User Guide](docs/USER_GUIDE.md) before the first live run.
 | Resample points | Off |
 | Full input precision | On |
 | Position reference | Previous node axes |
-| Input/glide time | `20 ms` |
+| Input/glide time | `50 ms` |
 | Tab settle delay | `20 ms` |
 | Build delay | `20 ms` |
 | Dry-run | Off |
 
-The 20 ms defaults prioritize build speed. Increase one or more delays when
-Roblox misses clicks, textbox changes, or decimal points.
+The input/glide default is `50 ms`; tab-settle and build remain `20 ms`.
+Increase one or more delays when Roblox misses clicks, textbox changes, or
+decimal points.
 
 ## Live automation safety
 

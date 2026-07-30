@@ -2,7 +2,7 @@ namespace Importer.Windows.Automation;
 
 public sealed record AutomationSettings
 {
-    public TimeSpan InputDelay { get; init; } = TimeSpan.FromMilliseconds(20);
+    public TimeSpan InputDelay { get; init; } = TimeSpan.FromMilliseconds(50);
 
     public TimeSpan BuildDelay { get; init; } = TimeSpan.FromMilliseconds(20);
 

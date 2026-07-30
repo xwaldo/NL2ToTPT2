@@ -23,8 +23,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Position and rotation formatting clean negative zero", FormattingCleansNegativeZero),
     ("Orientation matrix extracts straight and yawed headings", OrientationExtractionHandlesHeadings),
     ("Validator rejects an empty plan", ValidatorRejectsEmptyPlan),
-    ("Included NoLimits export completes the preview pipeline", IncludedExportCompletesPipeline),
-    ("Previous-node mode follows the included track tangent", PreviousNodeModeFollowsIncludedTrack),
+    ("Generated NoLimits track completes the preview pipeline", GeneratedTrackCompletesPipeline),
+    ("Previous-node mode follows a changing track tangent", PreviousNodeModeFollowsChangingTangent),
     ("Dry-run automation emits the complete section sequence", DryRunAutomationEmitsSequence),
     ("Full precision automation sends all six unrounded values", FullPrecisionAutomationSendsAllValues),
     ("Live routing keeps tabs, build, Y, and Z on distinct targets", LiveRoutingUsesDistinctTargets),
@@ -372,25 +372,23 @@ static Task ValidatorRejectsEmptyPlan()
     return Task.CompletedTask;
 }
 
-static async Task IncludedExportCompletesPipeline()
+static Task GeneratedTrackCompletesPipeline()
 {
-    var samplePath = FindRepositoryFile(Path.Combine("TestCSVs", "gcigcigci.csv"));
-    var samples = await new NoLimitsCsvParser().ParseFileAsync(samplePath);
+    var samples = CreateCurvedSamples();
     var resampled = new TrackResampler().Resample(samples, 1.0);
     var sections = new SectionGenerator().Generate(
         resampled,
         ImportConversionProfile.NoLimitsToRoblox);
     var issues = new ImportPlanValidator().Validate(sections);
 
-    AssertTrue(samples.Count > 1_000, "Expected the included export to contain more than 1,000 samples.");
     AssertTrue(sections.Count > 100, "Expected the included export to generate more than 100 sections.");
     AssertEqual(0, issues.Count(issue => issue.Severity == ValidationSeverity.Error));
+    return Task.CompletedTask;
 }
 
-static async Task PreviousNodeModeFollowsIncludedTrack()
+static Task PreviousNodeModeFollowsChangingTangent()
 {
-    var samplePath = FindRepositoryFile(Path.Combine("TestCSVs", "vekoma.csv"));
-    var samples = await new NoLimitsCsvParser().ParseFileAsync(samplePath);
+    var samples = CreateCurvedSamples();
     var resampled = new TrackResampler().Resample(samples, 1.0);
     var sections = new SectionGenerator().Generate(
         resampled,
@@ -407,6 +405,7 @@ static async Task PreviousNodeModeFollowsIncludedTrack()
         alignedFraction > 0.9,
         $"Expected more than 90% of sections to align with negative local Z, " +
         $"but observed {alignedFraction:P1}.");
+    return Task.CompletedTask;
 }
 
 static async Task DryRunAutomationEmitsSequence()
@@ -649,7 +648,7 @@ static Task AutomationDefaultsMatchReleaseSettings()
 {
     var settings = new AutomationSettings();
 
-    AssertEqual(TimeSpan.FromMilliseconds(20), settings.InputDelay);
+    AssertEqual(TimeSpan.FromMilliseconds(50), settings.InputDelay);
     AssertEqual(TimeSpan.FromMilliseconds(20), settings.ModeSwitchDelay);
     AssertEqual(TimeSpan.FromMilliseconds(20), settings.BuildDelay);
     AssertTrue(!settings.DryRun, "Dry-run should be disabled by default.");
@@ -756,21 +755,23 @@ static NoLimitsSample Sample(
         left ?? new Vec3(1, 0, 0),
         up ?? new Vec3(0, 1, 0));
 
-static string FindRepositoryFile(string relativePath)
+static IReadOnlyList<NoLimitsSample> CreateCurvedSamples()
 {
-    DirectoryInfo? directory = new(AppContext.BaseDirectory);
-    while (directory is not null)
+    const int sampleCount = 361;
+    const double radius = 100.0;
+    var samples = new List<NoLimitsSample>(sampleCount);
+    for (var index = 0; index < sampleCount; index++)
     {
-        var candidate = Path.Combine(directory.FullName, relativePath);
-        if (File.Exists(candidate))
-        {
-            return candidate;
-        }
-
-        directory = directory.Parent;
+        var angle = index / (double)(sampleCount - 1) * (Math.PI / 2.0);
+        samples.Add(Sample(
+            index + 1,
+            new Vec3(radius * Math.Cos(angle), 0, radius * Math.Sin(angle)),
+            front: new Vec3(-Math.Sin(angle), 0, Math.Cos(angle)),
+            left: new Vec3(Math.Cos(angle), 0, Math.Sin(angle)),
+            up: new Vec3(0, 1, 0)));
     }
 
-    throw new FileNotFoundException($"Could not locate repository file '{relativePath}'.");
+    return samples;
 }
 
 static void AssertNear(double expected, double actual, double tolerance = 1e-9)
