@@ -1,0 +1,269 @@
+<Window x:Class="Importer.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NL2 to TPT2"
+        Width="1280"
+        Height="760"
+        MinWidth="900"
+        MinHeight="560"
+        WindowStartupLocation="CenterScreen">
+    <TabControl>
+        <TabItem Header="_Import">
+            <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock FontSize="24"
+                       FontWeight="SemiBold"
+                       Text="NoLimits 2 import preview" />
+            <TextBlock Margin="0,4,0,14"
+                       Foreground="#5B6472"
+                       Text="Generate and validate Roblox section inputs before automation." />
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="160" />
+                <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="FilePathTextBox"
+                     Grid.Column="0"
+                     Margin="0,0,10,0"
+                     IsReadOnly="True"
+                     ToolTip="NoLimits 2 CSV or TSV export" />
+            <Button x:Name="SelectFileButton"
+                    Grid.Column="1"
+                    Click="SelectFileButton_Click"
+                    Content="Select CSV…" />
+            <StackPanel Grid.Column="2" Margin="10,0">
+                <CheckBox x:Name="ResampleCheckBox"
+                          Margin="0,0,0,5"
+                          Click="ResampleCheckBox_Click"
+                          Content="Resample points"
+                          IsChecked="False"
+                          ToolTip="Disable to build directly from every point in the CSV export" />
+                <TextBlock Margin="0,0,0,3"
+                           FontSize="11"
+                           Foreground="#5B6472"
+                           Text="Spacing (metres)" />
+                <TextBox x:Name="SpacingTextBox"
+                         IsEnabled="False"
+                         Text="1.0"
+                         ToolTip="Target distance between generated sections" />
+            </StackPanel>
+            <StackPanel Grid.Column="3" Margin="0,0,10,0">
+                <CheckBox x:Name="FullPrecisionCheckBox"
+                          Margin="0,0,0,5"
+                          Click="FullPrecisionCheckBox_Click"
+                          Content="Full input precision"
+                          IsChecked="True"
+                          ToolTip="Send all six values with up to 15 decimal places instead of using 0.00 and 0.0" />
+                <TextBlock Margin="0,0,0,3"
+                           FontSize="11"
+                           Foreground="#5B6472"
+                           Text="Position scale" />
+                <TextBox x:Name="ScaleTextBox"
+                         Text="3.6"
+                         ToolTip="Multiplier applied to all generated positions" />
+            </StackPanel>
+            <StackPanel Grid.Column="4" Margin="0,0,10,0">
+                <TextBlock Margin="0,0,0,3"
+                           FontSize="11"
+                           Foreground="#5B6472"
+                           Text="Position reference" />
+                <ComboBox x:Name="PositionReferenceComboBox"
+                          SelectionChanged="PositionReferenceComboBox_SelectionChanged"
+                          SelectedIndex="0"
+                          ToolTip="Must match Roblox's Translation Space. The selected starting node must also match the highlighted anchor rotation.">
+                    <ComboBoxItem Content="Previous node axes" />
+                    <ComboBoxItem Content="World axes" />
+                </ComboBox>
+                <TextBlock Margin="0,5,0,0"
+                           FontSize="10"
+                           Foreground="#5B6472"
+                           Text="-X left, -Z forward; rot absolute" />
+            </StackPanel>
+            <Button x:Name="GenerateButton"
+                    Grid.Column="5"
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Bottom"
+                    Click="GenerateButton_Click"
+                    Content="Generate preview"
+                    IsDefault="True" />
+            <Button x:Name="OpenAutoModeButton"
+                    Grid.Column="6"
+                    VerticalAlignment="Bottom"
+                    Click="OpenAutoModeButton_Click"
+                    Content="_Auto mode"
+                    IsEnabled="False" />
+        </Grid>
+
+        <Border Grid.Row="2"
+                Margin="0,14,0,10"
+                Padding="10"
+                Background="#FFF4D6"
+                BorderBrush="#E2C87A"
+                BorderThickness="1"
+                CornerRadius="4">
+            <TextBlock TextWrapping="Wrap"
+                       FontWeight="SemiBold"
+                       Text="Start with the highlighted ANCHOR row. Select the existing first node in Roblox and rotate it to the anchor yaw, pitch, and roll before building. Section 1 then builds Point 1 → Point 2. This applies in both World and Previous node modes and helps prevent “track twists too much” warnings." />
+        </Border>
+
+        <DataGrid x:Name="PreviewDataGrid"
+                  Grid.Row="3"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserSortColumns="False"
+                  EnableRowVirtualization="True"
+                  IsReadOnly="True"
+                  SelectionUnit="FullRow">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsAnchor}" Value="True">
+                            <Setter Property="Background" Value="#DCEBFF" />
+                            <Setter Property="Foreground" Value="#173B6C" />
+                            <Setter Property="FontWeight" Value="Bold" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Width="80" Header="Step" Binding="{Binding Step}" />
+                <DataGridTextColumn Width="170" Header="Track points" Binding="{Binding Points}" />
+                <DataGridTextColumn Width="130" Header="Δ X" Binding="{Binding X}" />
+                <DataGridTextColumn Width="130" Header="Δ Y" Binding="{Binding Y}" />
+                <DataGridTextColumn Width="130" Header="Δ Z" Binding="{Binding Z}" />
+                <DataGridTextColumn Width="130" Header="Yaw" Binding="{Binding Yaw}" />
+                <DataGridTextColumn Width="130" Header="Pitch" Binding="{Binding Pitch}" />
+                <DataGridTextColumn Width="130" Header="Roll" Binding="{Binding Roll}" />
+                <DataGridTextColumn Width="130" Header="Built X" Binding="{Binding BuiltX}" />
+                <DataGridTextColumn Width="130" Header="Built Y" Binding="{Binding BuiltY}" />
+                <DataGridTextColumn Width="130" Header="Built Z" Binding="{Binding BuiltZ}" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusTextBlock"
+                       Grid.Column="0"
+                       VerticalAlignment="Center"
+                       Foreground="#344054"
+                       Text="Select a NoLimits CSV export to begin." />
+            <ProgressBar x:Name="BusyProgressBar"
+                         Grid.Column="1"
+                         Width="150"
+                         Height="8"
+                         IsIndeterminate="True"
+                         Visibility="Collapsed" />
+        </Grid>
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="_Guide">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Width="900"
+                            Margin="24"
+                            HorizontalAlignment="Left">
+                    <TextBlock FontSize="24"
+                               FontWeight="SemiBold"
+                               Text="How to use NL2 to TPT2" />
+                    <TextBlock Margin="0,5,0,18"
+                               Foreground="#5B6472"
+                               Text="Follow these steps in order. No programming knowledge is needed." />
+
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="1. Prepare NoLimits 2" />
+                    <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
+                               Text="Open the CSV export window. Turn on Center of Rails. Set node spacing to 4 metres or more before exporting. If possible, begin on a straight, grid-aligned right angle so it is easier to place a station. Export the track as a CSV file." />
+
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="2. Prepare Roblox" />
+                    <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
+                               Text="Create or select the first track node. This is the anchor: it is Point 1 and will not be built by automation. Open Advanced editor, turn Auto smooth off, and disable every snap option. Set Translation Space to the same mode shown on the Import tab. Previous node is the default. Lower Roblox graphics if the game is lagging." />
+
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="3. Generate and review" />
+                    <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
+                               Text="Choose the CSV and select Generate preview. The blue ANCHOR row is Point 1. Rotate the selected Roblox node to the anchor yaw, pitch, and roll exactly as shown. Section 1 will then build Point 1 → Point 2. This anchor step is required in both modes and helps prevent a track twists too much warning. Remember the section count in case you need to restart." />
+
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="4. Calibrate Auto mode" />
+                    <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
+                               Text="Open Auto mode. For each Capture button, place the mouse over the named Roblox control and wait three seconds. Capture the Move and Rotate tabs before their textboxes. Also capture Build and an empty area that does nothing when clicked. Your choices are saved automatically." />
+
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="5. Run and watch" />
+                    <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
+                               Text="Leave Start at section set to 1 for a new build. Press Start, read the final checklist, and switch to Roblox during the three-second countdown. Do not touch the keyboard or mouse while it runs. Watch the track. Press Ctrl+Shift+X immediately if something is wrong." />
+
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="6. Recover from a failure" />
+                    <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
+                               Text="Note the last successfully built section in the log. Stop automation, correct or remove any partial section, dismiss the Roblox warning, and restart with Start at section set to the first section that still needs to be built." />
+
+                    <Border Padding="12"
+                            Background="#F4F0FF"
+                            BorderBrush="#A88BD4"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Text="Respect Workshop creators" />
+                            <TextBlock Margin="0,5,0,0"
+                                       TextWrapping="Wrap"
+                                       Text="If the layout came from the Steam Workshop, ask the owner for permission before using it in your game. Credit them inside the game with their Steam username and the name of the original project or ride." />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <TabItem Header="_Known issues">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Width="900"
+                            Margin="24"
+                            HorizontalAlignment="Left">
+                    <TextBlock FontSize="24"
+                               FontWeight="SemiBold"
+                               Text="Known issues and limitations" />
+                    <TextBlock Margin="0,5,0,18"
+                               Foreground="#5B6472"
+                               Text="Review these before starting a long unattended build." />
+
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Long-layout precision drift" />
+                    <TextBlock Margin="0,5,0,14" TextWrapping="Wrap"
+                               Text="Small conversion, game precision, and spline differences can accumulate over long layouts. Full input precision reduces importer-side rounding but cannot remove precision limits inside Roblox or the game." />
+
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="A bump can be felt at every section" />
+                    <TextBlock Margin="0,5,0,14" TextWrapping="Wrap"
+                               Text="Imported nodes may look aligned while the game's per-section curve or ride physics still creates a noticeable seam. This is especially visible in POV with smoothing factor 0." />
+
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Roblox can miss input" />
+                    <TextBlock Margin="0,5,0,14" TextWrapping="Wrap"
+                               Text="Game input lag can cause a click, textbox update, or decimal point to be missed. Lower Roblox graphics, avoid using the mouse or keyboard, and increase the input, tab-settle, or build delays when necessary." />
+
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Editor warnings interrupt automation" />
+                    <TextBlock Margin="0,5,0,14" TextWrapping="Wrap"
+                               Text="Warnings such as track twists too much, track too short, or track too long can take focus and stop the editor listening to text input. Later inputs will then go to the wrong place. Watch the run and cancel with Ctrl+Shift+X as soon as a warning appears." />
+
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Blueprint section limits" />
+                    <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                               Text="A layout can contain more generated sections than the game permits in a blueprint. Prefer 4 metres or greater node spacing in NoLimits 2 and review the section count before building." />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
+</Window>

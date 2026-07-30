@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>NL2ToTPT2</AssemblyName>
+    <Product>NL2 to TPT2</Product>
+    <Description>NoLimits 2 CSV importer for the Theme Park Tycoon 2 advanced track editor.</Description>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Importer.Core\Importer.Core.csproj" />
+    <ProjectReference Include="..\Importer.Windows\Importer.Windows.csproj" />
+  </ItemGroup>
+</Project>

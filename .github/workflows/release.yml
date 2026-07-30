@@ -1,0 +1,94 @@
+name: Build and release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore NL2ToTPT2.slnx
+
+      - name: Verify formatting
+        run: dotnet format NL2ToTPT2.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build NL2ToTPT2.slnx -c Release --no-restore
+
+      - name: Run regression tests
+        run: dotnet tests/Importer.Core.Tests/bin/Release/net10.0-windows/Importer.Core.Tests.dll
+
+      - name: Publish self-contained Windows application
+        shell: pwsh
+        run: |
+          $version = "0.1.0"
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME.StartsWith("v")) {
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+          }
+
+          dotnet publish src/Importer.UI/Importer.UI.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            "-p:Version=$version" `
+            -o artifacts/publish/NL2ToTPT2-win-x64
+
+          Copy-Item README.md artifacts/publish/NL2ToTPT2-win-x64/
+          Copy-Item CHANGELOG.md artifacts/publish/NL2ToTPT2-win-x64/
+          Copy-Item docs artifacts/publish/NL2ToTPT2-win-x64/docs -Recurse
+          Compress-Archive `
+            -Path artifacts/publish/NL2ToTPT2-win-x64/* `
+            -DestinationPath artifacts/NL2ToTPT2-win-x64.zip `
+            -CompressionLevel Optimal
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NL2ToTPT2-win-x64
+          path: artifacts/NL2ToTPT2-win-x64.zip
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (gh release view $env:GITHUB_REF_NAME 2>$null) {
+            gh release upload `
+              $env:GITHUB_REF_NAME `
+              artifacts/NL2ToTPT2-win-x64.zip `
+              --clobber
+          } else {
+            gh release create `
+              $env:GITHUB_REF_NAME `
+              artifacts/NL2ToTPT2-win-x64.zip `
+              --generate-notes `
+              --title "NL2 to TPT2 $env:GITHUB_REF_NAME"
+          }

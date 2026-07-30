@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="src/Importer.Core/Importer.Core.csproj" />
+  <Project Path="src/Importer.Windows/Importer.Windows.csproj" />
+  <Project Path="src/Importer.UI/Importer.UI.csproj" />
+  <Project Path="tests/Importer.Core.Tests/Importer.Core.Tests.csproj" />
+  <Project Path="tests/Importer.InputIntegrationTests/Importer.InputIntegrationTests.csproj" />
+  <Project Path="tests/Importer.InputTestTarget/Importer.InputTestTarget.csproj" />
+</Solution>
