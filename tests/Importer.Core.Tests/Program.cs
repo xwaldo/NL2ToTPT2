@@ -13,6 +13,15 @@ var tests = new (string Name, Func<Task> Run)[]
 {
     ("CSV parser reads the NoLimits vector schema", CsvParserReadsSchema),
     ("Resampler uses target arc distance and preserves endpoint", ResamplerUsesTargetDistance),
+    ("TPT2 curve fitter simplifies only constant-roll straights", CurveFitterSimplifiesStraight),
+    ("TPT2 curve fitter keeps curved sections close to 15 units", CurveFitterKeepsCurvesNearTarget),
+    ("TPT2 curve fitter honors configurable target and minimum lengths", CurveFitterHonorsConfiguredLengths),
+    ("TPT2 curve fitter ignores Euler noise on a vertical straight", CurveFitterIgnoresVerticalEulerNoise),
+    ("TPT2 curve fitter does not simplify a rolling vertical straight", CurveFitterPreservesRollingStraight),
+    ("TPT2 curve fitter preserves roll changes hidden between matching endpoints", CurveFitterPreservesInteriorRollChange),
+    ("TPT2 curve fitter never drops below four units for accuracy", CurveFitterUsesShortSectionsForAccuracy),
+    ("TPT2 curve fitter preserves ordered samples and the final endpoint", CurveFitterPreservesFinalEndpoint),
+    ("TPT2 curve fitter processes the included Vekoma export", CurveFitterProcessesVekomaExport),
     ("Section generation compensates rounded built position", SectionGenerationCompensatesRounding),
     ("Full precision section generation preserves small deltas", FullPrecisionPreservesSmallDeltas),
     ("Section generation applies position scale around the source origin", SectionGenerationAppliesScale),
@@ -32,6 +41,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Calibration profile round-trips partial saved points", CalibrationProfileRoundTrips),
     ("Automation defaults match the release settings", AutomationDefaultsMatchReleaseSettings),
     ("Mouse trajectory is eased, clocked, and ends exactly on target", MouseTrajectoryIsDeterministic),
+    ("Mouse micro-glide starts a few pixels before the target", MouseMicroGlideUsesShortApproach),
 };
 
 var failed = 0;
@@ -85,6 +95,305 @@ static Task ResamplerUsesTargetDistance()
     AssertNear(0.5, result[1].Position.X);
     AssertNear(1.0, result[2].Position.X);
     return Task.CompletedTask;
+}
+
+static Task CurveFitterSimplifiesStraight()
+{
+    const double positionScale = 2.0;
+    var samples = Enumerable.Range(0, 201)
+        .Select(index => Sample(
+            index + 1,
+            new Vec3(index * 0.5, 0, 0),
+            front: new Vec3(1, 0, 0),
+            left: new Vec3(0, 0, -1),
+            up: new Vec3(0, 1, 0)))
+        .ToArray();
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.01,
+    };
+
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale,
+        settings);
+    var lengths = result.Samples
+        .Zip(result.Samples.Skip(1))
+        .Select(pair => (pair.Second.Position - pair.First.Position).Length * positionScale)
+        .ToArray();
+
+    AssertEqual(4, result.Samples.Count);
+    AssertEqual(3, lengths.Length);
+    AssertEqual(3, result.Metrics.SimplifiedStraightSectionCount);
+    AssertTrue(
+        lengths.All(length => length <= 95.0 + 1e-9),
+        "Every generated straight section must respect the 95-unit cap.");
+    AssertTrue(
+        lengths.All(length => length >= 15.0),
+        "A long straight should not leave an avoidable sub-15-unit remainder.");
+    AssertTrue(
+        result.Metrics.MaximumDeviation <= settings.MaximumDeviation,
+        "The fitted straight must remain within the configured tolerance.");
+    return Task.CompletedTask;
+}
+
+static Task CurveFitterKeepsCurvesNearTarget()
+{
+    var samples = CreateCurvedSamples();
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.5,
+    };
+
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 1.0,
+        settings);
+
+    AssertEqual(0, result.Metrics.SimplifiedStraightSectionCount);
+    AssertTrue(
+        result.Metrics.MaximumSectionLength <=
+        settings.TargetSectionLength * settings.PreferredMaximumAdjacentLengthRatio + 1e-9,
+        "Curved sections must not expand toward the 95-unit straight-only cap.");
+    AssertTrue(
+        result.Metrics.AverageSectionLength >= 10.0 &&
+        result.Metrics.AverageSectionLength <= 18.0,
+        "Ordinary curved sections should remain close to the 15-unit target.");
+    return Task.CompletedTask;
+}
+
+static Task CurveFitterHonorsConfiguredLengths()
+{
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.5,
+        MinimumSectionLength = 8.0,
+        PreferredMinimumSectionLength = 8.0,
+        TargetSectionLength = 12.0,
+    };
+
+    var result = new Tpt2CurveFitter().Fit(
+        CreateCurvedSamples(),
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 1.0,
+        settings);
+
+    AssertTrue(
+        result.Metrics.MinimumSectionLength >= settings.MinimumSectionLength - 1e-9,
+        "The fitted track must respect the configured hard minimum.");
+    AssertTrue(
+        result.Metrics.AverageSectionLength >= 8.0 &&
+        result.Metrics.AverageSectionLength <= 15.0,
+        "The fitted track should remain near the configured 12-unit target.");
+    return Task.CompletedTask;
+}
+
+static Task CurveFitterPreservesRollingStraight()
+{
+    const double positionScale = 2.0;
+    var samples = Enumerable.Range(0, 201)
+        .Select(index =>
+        {
+            var roll = index / 200.0 * (Math.PI / 2.0);
+            return Sample(
+                index + 1,
+                new Vec3(0, index * -0.5, 0),
+                front: new Vec3(0, -1, 0),
+                left: new Vec3(Math.Cos(roll), 0, Math.Sin(roll)),
+                up: new Vec3(Math.Sin(roll), 0, -Math.Cos(roll)));
+        })
+        .ToArray();
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.01,
+    };
+
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale,
+        settings);
+
+    AssertEqual(0, result.Metrics.SimplifiedStraightSectionCount);
+    AssertTrue(
+        result.Metrics.MaximumSectionLength <=
+        settings.TargetSectionLength * settings.PreferredMaximumAdjacentLengthRatio + 1e-9,
+        "A straight with meaningful roll rate must retain normal-sized sections.");
+    AssertTrue(
+        result.Samples.Count > 4,
+        "The rolling straight must use multiple sections so its roll progression is preserved.");
+    AssertTrue(
+        result.Metrics.MaximumRollDeviation <= settings.MaximumRollDeviation + 1e-9,
+        "Roll interpolation must stay within its configured tolerance.");
+    return Task.CompletedTask;
+}
+
+static async Task CurveFitterIgnoresVerticalEulerNoise()
+{
+    var path = Path.Combine(Environment.CurrentDirectory, "TestCSVs", "vekoma.csv");
+    var samples = (await new NoLimitsCsvParser().ParseFileAsync(path))
+        .Take(6)
+        .ToArray();
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.5,
+    };
+
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 3.6,
+        settings);
+
+    AssertEqual(1, result.Metrics.SimplifiedStraightSectionCount);
+    AssertEqual(3, result.Samples.Count);
+    AssertTrue(
+        result.Metrics.MaximumSectionLength > 45.0,
+        "A physically unbanked vertical run must not be shortened by Euler yaw/roll noise.");
+    AssertTrue(
+        result.Metrics.MinimumSectionLength >= settings.PreferredMinimumSectionLength,
+        "Vertical Euler noise must not drive a section toward the minimum length.");
+}
+
+static Task CurveFitterPreservesInteriorRollChange()
+{
+    const int sampleCount = 61;
+    var samples = Enumerable.Range(0, sampleCount)
+        .Select(index =>
+        {
+            var amount = index / (double)(sampleCount - 1);
+            var roll = Math.Sin(amount * Math.PI) * (Math.PI / 6.0);
+            return Sample(
+                index + 1,
+                new Vec3(0, 0, amount * 30.0),
+                front: new Vec3(0, 0, 1),
+                left: new Vec3(Math.Cos(roll), -Math.Sin(roll), 0),
+                up: new Vec3(Math.Sin(roll), Math.Cos(roll), 0));
+        })
+        .ToArray();
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.01,
+        MaximumRollDeviation = 3.0,
+    };
+
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 1.0,
+        settings);
+
+    AssertTrue(
+        result.Samples.Count > 2,
+        "Matching endpoint roll must not hide a substantial roll change inside the section.");
+    AssertEqual(0, result.Metrics.SimplifiedStraightSectionCount);
+    AssertTrue(
+        result.Metrics.MaximumRollDeviation <= settings.MaximumRollDeviation + 1e-9,
+        "Interior roll interpolation must remain within tolerance.");
+    return Task.CompletedTask;
+}
+
+static Task CurveFitterUsesShortSectionsForAccuracy()
+{
+    const double radius = 20.0;
+    const int sampleCount = 361;
+    var samples = new List<NoLimitsSample>(sampleCount);
+    for (var index = 0; index < sampleCount; index++)
+    {
+        var angle = index / (double)(sampleCount - 1) * (Math.PI / 2.0);
+        samples.Add(Sample(
+            index + 1,
+            new Vec3(radius * Math.Cos(angle), 0, radius * Math.Sin(angle)),
+            front: new Vec3(-Math.Sin(angle), 0, Math.Cos(angle)),
+            left: new Vec3(Math.Cos(angle), 0, Math.Sin(angle)),
+            up: new Vec3(0, 1, 0)));
+    }
+
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.002,
+    };
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 1.0,
+        settings);
+
+    AssertTrue(
+        result.Metrics.MinimumSectionLength >= settings.MinimumSectionLength - 1e-9,
+        "Curve accuracy must never force a section below the four-unit minimum.");
+    AssertTrue(
+        result.Metrics.MinimumSectionLength < settings.TargetSectionLength,
+        "A strict accuracy tolerance should still shorten sections below the normal 15-unit target.");
+    return Task.CompletedTask;
+}
+
+static Task CurveFitterPreservesFinalEndpoint()
+{
+    var samples = CreateCurvedSamples();
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.25,
+    };
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 1.0,
+        settings);
+
+    AssertEqual(samples[0], result.Samples[0]);
+    AssertEqual(samples[^1], result.Samples[^1]);
+    AssertTrue(
+        result.Samples
+            .Zip(result.Samples.Skip(1))
+            .All(pair => pair.First.SourceIndex < pair.Second.SourceIndex),
+        "Selected CSV samples must remain in source order.");
+    AssertTrue(
+        result.Metrics.MaximumSectionLength <= settings.MaximumSectionLength + 1e-9,
+        "The hard section-length cap must be measured after scale.");
+    AssertTrue(
+        result.Metrics.MaximumDeviation <= settings.MaximumDeviation + 1e-9,
+        "The final fitted path must remain within the requested tolerance.");
+    return Task.CompletedTask;
+}
+
+static async Task CurveFitterProcessesVekomaExport()
+{
+    var path = Path.Combine(Environment.CurrentDirectory, "TestCSVs", "vekoma.csv");
+    var samples = await new NoLimitsCsvParser().ParseFileAsync(path);
+    var settings = new Tpt2CurveFitSettings
+    {
+        MaximumDeviation = 0.5,
+    };
+    var result = new Tpt2CurveFitter().Fit(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        positionScale: 3.6,
+        settings);
+
+    AssertTrue(
+        result.Samples.Count < samples.Count,
+        "Curve fitting should simplify the included dense export.");
+    AssertTrue(
+        result.Samples.Count >= samples.Count * 0.75,
+        "Curve fitting must not aggressively simplify curved or rolling parts of the real export.");
+    AssertTrue(
+        result.Metrics.AverageSectionLength >= 10.0 &&
+        result.Metrics.AverageSectionLength <= 20.0,
+        "The real export should remain centered around the 15-unit normal target.");
+    AssertTrue(
+        result.Metrics.MinimumSectionLength >= settings.PreferredMinimumSectionLength - 1e-9,
+        $"The real export should stay above the preferred safety floor, but reached " +
+        $"{result.Metrics.MinimumSectionLength:N3} units.");
+    AssertEqual(samples[^1], result.Samples[^1]);
+    AssertTrue(
+        result.Metrics.MaximumDeviation <= settings.MaximumDeviation + 1e-9,
+        "The real export must remain within the configured curve error.");
+    AssertTrue(
+        result.Metrics.MaximumSectionLength <= settings.MaximumSectionLength + 1e-9,
+        "The real export must respect the 95-unit cap after scaling.");
 }
 
 static Task SectionGenerationCompensatesRounding()
@@ -649,8 +958,12 @@ static Task AutomationDefaultsMatchReleaseSettings()
     var settings = new AutomationSettings();
 
     AssertEqual(TimeSpan.FromMilliseconds(50), settings.InputDelay);
+    AssertEqual(TimeSpan.FromMilliseconds(50), settings.MouseMovementDelay);
+    AssertEqual(TimeSpan.FromMilliseconds(40), settings.MouseButtonDelay);
     AssertEqual(TimeSpan.FromMilliseconds(20), settings.ModeSwitchDelay);
     AssertEqual(TimeSpan.FromMilliseconds(20), settings.BuildDelay);
+    AssertEqual(TimeSpan.FromMilliseconds(20), settings.TextInputDelay);
+    AssertEqual(MouseMovementMode.SnapMicroGlide, settings.MouseMovementMode);
     AssertTrue(!settings.DryRun, "Dry-run should be disabled by default.");
     return Task.CompletedTask;
 }
@@ -739,6 +1052,22 @@ static Task MouseTrajectoryIsDeterministic()
         maximumPixelsPerSecond: 4_000,
         maximumPreferredDuration: TimeSpan.FromMilliseconds(200));
     AssertEqual(TimeSpan.FromMilliseconds(300), responsiveLongMoveDuration);
+    return Task.CompletedTask;
+}
+
+static Task MouseMicroGlideUsesShortApproach()
+{
+    var approach = MouseTrajectory.CreateApproachPoint(
+        new PixelPoint(0, 0),
+        new PixelPoint(100, 0),
+        offsetPixels: 5.0);
+    AssertEqual(new PixelPoint(95, 0), approach);
+
+    var alreadyNear = MouseTrajectory.CreateApproachPoint(
+        new PixelPoint(98, 101),
+        new PixelPoint(100, 100),
+        offsetPixels: 5.0);
+    AssertEqual(new PixelPoint(98, 101), alreadyNear);
     return Task.CompletedTask;
 }
 

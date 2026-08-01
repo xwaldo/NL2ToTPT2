@@ -37,7 +37,7 @@ public partial class AutomationWindow : Window
         InitializeComponent();
         SectionCountTextBlock.Text = $"{sections.Count:N0} sections available";
         AnchorSummaryTextBlock.Text =
-            $"ANCHOR — Before section 1, rotate the selected starting node to " +
+            $"ANCHOR — Reset the starting section to a straight shape, then rotate the selected starting node to " +
             $"{FormatRotation(anchor.Rotation, anchor.InputPrecision)}. " +
             "Section 1 builds Point 1 → Point 2.";
         AutomationProgressBar.Maximum = sections.Count;
@@ -192,6 +192,7 @@ public partial class AutomationWindow : Window
             var confirmation = MessageBox.Show(
                 this,
                 $"Live mode will enter {_sections.Count - startIndex:N0} sections into Roblox.{Environment.NewLine}" +
+                "Reset the selected starting section to a straight shape first. " +
                 $"Select Point {startingPoint}'s node and rotate it to " +
                 $"{FormatRotation(startingRotation, startingPrecision)}. " +
                 $"Section {startIndex + 1} builds Point {startingPoint} → Point {startingPoint + 1}." +
@@ -214,13 +215,27 @@ public partial class AutomationWindow : Window
 
         IAutomationInput automationInput = settings.DryRun
             ? new DryRunAutomationInput()
-            : new RobloxAutomationInput(_windowLocator, _inputSimulator);
+            : new RobloxAutomationInput(
+                _windowLocator,
+                _inputSimulator,
+                settings.MouseMovementMode,
+                settings.TextInputDelay,
+                settings.MouseMovementDelay,
+                settings.MouseButtonDelay);
         _automationRunner = new AutomationRunner(automationInput, settings);
         _automationRunner.ProgressChanged += AutomationProgressChanged;
         _automationCancellation = new CancellationTokenSource();
         SetRunningState(true);
         AppendLog(
-            $"{(settings.DryRun ? "Dry-run" : "Live automation")} started at section {startIndex + 1}.");
+            $"{(settings.DryRun ? "Dry-run" : "Live automation")} started at section {startIndex + 1}; " +
+            $"mouse movement: {settings.MouseMovementMode}; " +
+            $"movement/hold/button/text/tab/build ms: " +
+            $"{settings.MouseMovementDelay.TotalMilliseconds:0.###}/" +
+            $"{settings.InputDelay.TotalMilliseconds:0.###}/" +
+            $"{settings.MouseButtonDelay.TotalMilliseconds:0.###}/" +
+            $"{settings.TextInputDelay.TotalMilliseconds:0.###}/" +
+            $"{settings.ModeSwitchDelay.TotalMilliseconds:0.###}/" +
+            $"{settings.BuildDelay.TotalMilliseconds:0.###}.");
 
         try
         {
@@ -390,13 +405,29 @@ public partial class AutomationWindow : Window
         startIndex = 0;
 
         if (!TryReadNonNegativeMilliseconds(InputDelayTextBox.Text, out var inputDelay) ||
+            !TryReadNonNegativeMilliseconds(MouseMovementDelayTextBox.Text, out var mouseMovementDelay) ||
+            !TryReadNonNegativeMilliseconds(MouseButtonDelayTextBox.Text, out var mouseButtonDelay) ||
+            !TryReadNonNegativeMilliseconds(TextInputDelayTextBox.Text, out var textInputDelay) ||
             !TryReadNonNegativeMilliseconds(BuildDelayTextBox.Text, out var buildDelay) ||
             !TryReadNonNegativeMilliseconds(ModeSwitchDelayTextBox.Text, out var modeSwitchDelay))
         {
             MessageBox.Show(
                 this,
-                "Input, tab-settle, and build delays must be non-negative millisecond values.",
+                "Mouse movement, target hold, mouse button, text-step, tab-settle, and build-settle delays must be non-negative millisecond values.",
                 "Invalid delay",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+
+        if (MouseMovementModeComboBox.SelectedItem is not ComboBoxItem movementItem ||
+            movementItem.Tag is not string movementTag ||
+            !Enum.TryParse<MouseMovementMode>(movementTag, out var mouseMovementMode))
+        {
+            MessageBox.Show(
+                this,
+                "Select a valid mouse movement mode.",
+                "Invalid mouse movement",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return false;
@@ -422,8 +453,12 @@ public partial class AutomationWindow : Window
         settings = new AutomationSettings
         {
             InputDelay = inputDelay,
+            MouseMovementDelay = mouseMovementDelay,
+            MouseButtonDelay = mouseButtonDelay,
             BuildDelay = buildDelay,
             ModeSwitchDelay = modeSwitchDelay,
+            TextInputDelay = textInputDelay,
+            MouseMovementMode = mouseMovementMode,
             DryRun = DryRunCheckBox.IsChecked == true,
         };
         startIndex = sectionNumber - 1;
@@ -561,8 +596,12 @@ public partial class AutomationWindow : Window
         PauseButton.IsEnabled = running;
         StopButton.IsEnabled = running;
         InputDelayTextBox.IsEnabled = !running;
+        MouseMovementDelayTextBox.IsEnabled = !running;
+        MouseButtonDelayTextBox.IsEnabled = !running;
         BuildDelayTextBox.IsEnabled = !running;
         ModeSwitchDelayTextBox.IsEnabled = !running;
+        TextInputDelayTextBox.IsEnabled = !running;
+        MouseMovementModeComboBox.IsEnabled = !running;
         StartSectionTextBox.IsEnabled = !running;
         DryRunCheckBox.IsEnabled = !running;
         ClearSavedCalibrationButton.IsEnabled = !running;

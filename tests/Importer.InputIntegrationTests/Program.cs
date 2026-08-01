@@ -184,6 +184,7 @@ static Task ClickAsync(
     return simulator.ClickAsync(
         new PixelPoint(point.X, point.Y),
         options.InputDelay,
+        options.MouseMovementMode,
         CancellationToken.None);
 }
 
@@ -199,6 +200,8 @@ static async Task EnterAsync(
         new PixelPoint(point.X, point.Y),
         value,
         options.InputDelay,
+        options.MouseMovementMode,
+        options.TextInputDelay,
         CancellationToken.None);
     await Task.Delay(options.InputDelay);
 }
@@ -335,15 +338,19 @@ static string GetBuildConfiguration()
 sealed record IntegrationOptions(
     int Iterations,
     TimeSpan InputDelay,
+    TimeSpan TextInputDelay,
     TimeSpan TabDelay,
-    TimeSpan BuildDelay)
+    TimeSpan BuildDelay,
+    MouseMovementMode MouseMovementMode)
 {
     public static IntegrationOptions Parse(IReadOnlyList<string> arguments)
     {
         var iterations = ReadInt(arguments, "--iterations", 10);
         var inputDelay = ReadMilliseconds(arguments, "--input-delay", 100);
+        var textInputDelay = ReadMilliseconds(arguments, "--text-input-delay", 20);
         var tabDelay = ReadMilliseconds(arguments, "--tab-delay", 250);
         var buildDelay = ReadMilliseconds(arguments, "--build-delay", 250);
+        var mouseMovementMode = ReadMouseMovementMode(arguments);
         if (iterations <= 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -351,7 +358,34 @@ sealed record IntegrationOptions(
                 "Iterations must be positive.");
         }
 
-        return new IntegrationOptions(iterations, inputDelay, tabDelay, buildDelay);
+        return new IntegrationOptions(
+            iterations,
+            inputDelay,
+            textInputDelay,
+            tabDelay,
+            buildDelay,
+            mouseMovementMode);
+    }
+
+    private static MouseMovementMode ReadMouseMovementMode(
+        IReadOnlyList<string> arguments)
+    {
+        for (var index = 0; index < arguments.Count - 1; index++)
+        {
+            if (string.Equals(
+                    arguments[index],
+                    "--mouse-mode",
+                    StringComparison.OrdinalIgnoreCase) &&
+                Enum.TryParse<MouseMovementMode>(
+                    arguments[index + 1],
+                    ignoreCase: true,
+                    out var value))
+            {
+                return value;
+            }
+        }
+
+        return MouseMovementMode.SnapMicroGlide;
     }
 
     private static int ReadInt(

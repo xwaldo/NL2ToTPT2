@@ -15,6 +15,7 @@ public sealed class WindowsInputSimulator
     private static readonly TimeSpan LowLevelEventDelay = TimeSpan.FromMilliseconds(40);
     private static readonly TimeSpan MaximumPreferredGlideDuration =
         TimeSpan.FromMilliseconds(200);
+    private const double MicroGlideOffsetPixels = 5.0;
     private const int MaximumMouseMoveAttempts = 3;
     private const int MousePositionTolerance = 2;
     private const double PreferredMouseSpeedPixelsPerSecond = 1_600.0;
@@ -29,23 +30,59 @@ public sealed class WindowsInputSimulator
         TimeSpan inputDelay,
         CancellationToken cancellationToken)
     {
-        if (inputDelay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(inputDelay));
-        }
+        await ClickAsync(
+            point,
+            Max(inputDelay, MinimumActionDelay),
+            MouseMovementMode.FullGlide,
+            Max(inputDelay, MinimumActionDelay),
+            LowLevelEventDelay,
+            cancellationToken);
+    }
 
-        var actionDelay = Max(inputDelay, MinimumActionDelay);
+    public async Task ClickAsync(
+        PixelPoint point,
+        TimeSpan inputDelay,
+        MouseMovementMode mouseMovementMode,
+        CancellationToken cancellationToken)
+    {
+        var effectiveDelay = Max(inputDelay, MinimumActionDelay);
+        await ClickAsync(
+            point,
+            effectiveDelay,
+            mouseMovementMode,
+            effectiveDelay,
+            LowLevelEventDelay,
+            cancellationToken);
+    }
+
+    public async Task ClickAsync(
+        PixelPoint point,
+        TimeSpan targetHoldDelay,
+        MouseMovementMode mouseMovementMode,
+        TimeSpan mouseMovementDelay,
+        TimeSpan mouseButtonDelay,
+        CancellationToken cancellationToken)
+    {
+        if (targetHoldDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetHoldDelay));
+        }
+        ValidateNonNegative(mouseMovementDelay, nameof(mouseMovementDelay));
+        ValidateNonNegative(mouseButtonDelay, nameof(mouseButtonDelay));
+
         cancellationToken.ThrowIfCancellationRequested();
         var target = CreateMouseTarget(point);
         await RefreshMousePositionAsync(
             target,
-            actionDelay,
+            targetHoldDelay,
+            mouseMovementDelay,
+            mouseMovementMode,
             cancellationToken);
         await ClickMouseAsync(
             target,
-            LowLevelEventDelay,
+            mouseButtonDelay,
             cancellationToken);
-        await DelayAtLeastAsync(actionDelay, cancellationToken);
+        await DelayAtLeastAsync(targetHoldDelay, cancellationToken);
     }
 
     public async Task EnterValueAsync(
@@ -54,50 +91,107 @@ public sealed class WindowsInputSimulator
         TimeSpan inputDelay,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(value);
-        if (inputDelay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(inputDelay));
-        }
+        await EnterValueAsync(
+            point,
+            value,
+            inputDelay,
+            MouseMovementMode.FullGlide,
+            inputDelay,
+            inputDelay,
+            LowLevelEventDelay,
+            cancellationToken);
+    }
 
-        var actionDelay = Max(inputDelay, MinimumActionDelay);
+    public async Task EnterValueAsync(
+        PixelPoint point,
+        string value,
+        TimeSpan inputDelay,
+        MouseMovementMode mouseMovementMode,
+        CancellationToken cancellationToken)
+    {
+        await EnterValueAsync(
+            point,
+            value,
+            inputDelay,
+            mouseMovementMode,
+            inputDelay,
+            inputDelay,
+            LowLevelEventDelay,
+            cancellationToken);
+    }
+
+    public async Task EnterValueAsync(
+        PixelPoint point,
+        string value,
+        TimeSpan inputDelay,
+        MouseMovementMode mouseMovementMode,
+        TimeSpan textInputDelay,
+        CancellationToken cancellationToken)
+    {
+        var effectiveDelay = Max(inputDelay, MinimumActionDelay);
+        await EnterValueAsync(
+            point,
+            value,
+            effectiveDelay,
+            mouseMovementMode,
+            Max(textInputDelay, MinimumActionDelay),
+            effectiveDelay,
+            LowLevelEventDelay,
+            cancellationToken);
+    }
+
+    public async Task EnterValueAsync(
+        PixelPoint point,
+        string value,
+        TimeSpan targetHoldDelay,
+        MouseMovementMode mouseMovementMode,
+        TimeSpan textInputDelay,
+        TimeSpan mouseMovementDelay,
+        TimeSpan mouseButtonDelay,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ValidateNonNegative(targetHoldDelay, nameof(targetHoldDelay));
+        ValidateNonNegative(textInputDelay, nameof(textInputDelay));
+        ValidateNonNegative(mouseMovementDelay, nameof(mouseMovementDelay));
+        ValidateNonNegative(mouseButtonDelay, nameof(mouseButtonDelay));
+
         cancellationToken.ThrowIfCancellationRequested();
         var target = CreateMouseTarget(point);
         await RefreshMousePositionAsync(
             target,
-            actionDelay,
+            targetHoldDelay,
+            mouseMovementDelay,
+            mouseMovementMode,
             cancellationToken);
         await ClickMouseAsync(
             target,
-            LowLevelEventDelay,
+            mouseButtonDelay,
             cancellationToken);
         await ClickMouseAsync(
             target,
-            LowLevelEventDelay,
+            mouseButtonDelay,
             cancellationToken);
-        await DelayAtLeastAsync(actionDelay, cancellationToken);
+        await DelayAtLeastAsync(textInputDelay, cancellationToken);
 
         await SendKeyChordAsync(
             VirtualKeyControl,
             VirtualKeyA,
-            LowLevelEventDelay,
+            textInputDelay,
             cancellationToken);
-        await DelayAtLeastAsync(actionDelay, cancellationToken);
         await SendVirtualKeyAsync(
             VirtualKeyBackspace,
-            LowLevelEventDelay,
+            textInputDelay,
             cancellationToken);
-        await DelayAtLeastAsync(actionDelay, cancellationToken);
         await SendUnicodeValueAsync(
             value,
-            LowLevelEventDelay,
+            textInputDelay,
             cancellationToken);
-        await DelayAtLeastAsync(actionDelay, cancellationToken);
+        await DelayAtLeastAsync(textInputDelay, cancellationToken);
         await SendVirtualKeyAsync(
             VirtualKeyEnter,
-            LowLevelEventDelay,
+            textInputDelay,
             cancellationToken);
-        await DelayAtLeastAsync(actionDelay, cancellationToken);
     }
 
     private static MouseTarget CreateMouseTarget(PixelPoint point)
@@ -120,7 +214,9 @@ public sealed class WindowsInputSimulator
 
     private static async Task RefreshMousePositionAsync(
         MouseTarget target,
-        TimeSpan inputDelay,
+        TimeSpan targetHoldDelay,
+        TimeSpan mouseMovementDelay,
+        MouseMovementMode mouseMovementMode,
         CancellationToken cancellationToken)
     {
         NativeMethods.NativePoint actualPoint = default;
@@ -133,22 +229,42 @@ public sealed class WindowsInputSimulator
             }
 
             var start = new PixelPoint(startPoint.X, startPoint.Y);
-            var glideDuration = MouseTrajectory.CalculateResponsiveDuration(
-                start,
-                target.ScreenPoint,
-                inputDelay,
-                PreferredMouseSpeedPixelsPerSecond,
-                MaximumMouseSpeedPixelsPerSecond,
-                MaximumPreferredGlideDuration);
+            switch (mouseMovementMode)
+            {
+                case MouseMovementMode.SnapMicroGlide:
+                    await SnapAndMicroGlideAsync(
+                        start,
+                        target,
+                        mouseMovementDelay,
+                        cancellationToken);
+                    break;
+
+                case MouseMovementMode.FullGlide:
+                    var glideDuration = MouseTrajectory.CalculateResponsiveDuration(
+                        start,
+                        target.ScreenPoint,
+                        mouseMovementDelay,
+                        PreferredMouseSpeedPixelsPerSecond,
+                        MaximumMouseSpeedPixelsPerSecond,
+                        MaximumPreferredGlideDuration);
+                    await GlideMouseAsync(
+                        start,
+                        target.ScreenPoint,
+                        glideDuration,
+                        cancellationToken);
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(mouseMovementMode),
+                        mouseMovementMode,
+                        "Unsupported mouse movement mode.");
+            }
+
             await GlideMouseAsync(
-                start,
-                target.ScreenPoint,
-                glideDuration,
-                cancellationToken);
-            await GlideMouseAsync(
                 target.ScreenPoint,
                 target.ScreenPoint,
-                inputDelay,
+                targetHoldDelay,
                 cancellationToken);
 
             if (!NativeMethods.GetCursorPos(out actualPoint))
@@ -167,6 +283,33 @@ public sealed class WindowsInputSimulator
             $"Mouse did not reach ({target.ScreenPoint.X}, {target.ScreenPoint.Y}) " +
             $"after {MaximumMouseMoveAttempts} attempts; " +
             $"last position was ({actualPoint.X}, {actualPoint.Y}).");
+    }
+
+    private static async Task SnapAndMicroGlideAsync(
+        PixelPoint start,
+        MouseTarget target,
+        TimeSpan mouseMovementDelay,
+        CancellationToken cancellationToken)
+    {
+        var approachPoint = MouseTrajectory.CreateApproachPoint(
+            start,
+            target.ScreenPoint,
+            MicroGlideOffsetPixels);
+        SendMouseMove(CreateMouseTarget(approachPoint));
+        await DelayAtLeastAsync(MouseSampleInterval, cancellationToken);
+        await GlideMouseAsync(
+            approachPoint,
+            target.ScreenPoint,
+            mouseMovementDelay,
+            cancellationToken);
+    }
+
+    private static void ValidateNonNegative(TimeSpan value, string parameterName)
+    {
+        if (value < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(parameterName);
+        }
     }
 
     private static async Task GlideMouseAsync(

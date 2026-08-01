@@ -67,6 +67,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
@@ -126,13 +127,13 @@
 
             <GroupBox Grid.Row="3"
                       Margin="0,0,0,12"
-                      Header="Run settings">
+                      Header="Run and compatibility settings">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="145" />
+                        <ColumnDefinition Width="90" />
                         <ColumnDefinition Width="150" />
-                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="90" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
@@ -140,22 +141,14 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Input/glide time (ms)" />
-                    <TextBox x:Name="InputDelayTextBox"
-                             Grid.Row="0"
-                             Grid.Column="1"
-                             Margin="5"
-                             Text="50"
-                             ToolTip="Minimum 60 Hz glide duration and landing hold; long moves are capped at 4,000 pixels/second" />
-                    <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Text="Build delay (ms)" />
-                    <TextBox x:Name="BuildDelayTextBox" Grid.Row="0" Grid.Column="3" Margin="5" Text="20" />
-
-                    <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Start at section" />
-                    <TextBox x:Name="StartSectionTextBox" Grid.Row="1" Grid.Column="1" Margin="5" Text="1" />
+                    <TextBlock Grid.Row="0" VerticalAlignment="Center" Text="Start at section" />
+                    <TextBox x:Name="StartSectionTextBox" Grid.Row="0" Grid.Column="1" Margin="5" Text="1" />
                     <CheckBox x:Name="DryRunCheckBox"
-                              Grid.Row="1"
+                              Grid.Row="0"
                               Grid.Column="2"
                               Grid.ColumnSpan="2"
                               Margin="8,5"
@@ -163,22 +156,77 @@
                               Content="Dry-run (no OS input)"
                               IsChecked="False" />
                     <TextBlock x:Name="SectionCountTextBlock"
-                               Grid.Row="1"
+                               Grid.Row="0"
                                Grid.Column="4"
                                VerticalAlignment="Center"
                                Foreground="#5B6472" />
 
-                    <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Tab settle (ms)" />
-                    <TextBox x:Name="ModeSwitchDelayTextBox" Grid.Row="2" Grid.Column="1" Margin="5" Text="20" />
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="2"
-                               Grid.ColumnSpan="3"
+                    <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Mouse movement (ms)" />
+                    <TextBox x:Name="MouseMovementDelayTextBox"
+                             Grid.Row="1"
+                             Grid.Column="1"
+                             Margin="5"
+                             Text="50"
+                             ToolTip="Snap micro-glide duration, or minimum duration in Full glide mode" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Text="Target hold (ms)" />
+                    <TextBox x:Name="InputDelayTextBox"
+                             Grid.Row="1"
+                             Grid.Column="3"
+                             Margin="5"
+                             Text="50"
+                             ToolTip="Repeated exact-target position updates before input, post-click settling, and Roblox focus settling" />
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="4"
                                Margin="8,0,0,0"
                                VerticalAlignment="Center"
                                Foreground="#5B6472"
-                               Text="Wait after clicking Move or Rotate before entering values." />
+                               Text="Raise these if Roblox's cursor lands late." />
 
-                    <Border Grid.Row="3"
+                    <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Mouse button (ms)" />
+                    <TextBox x:Name="MouseButtonDelayTextBox"
+                             Grid.Row="2"
+                             Grid.Column="1"
+                             Margin="5"
+                             Text="40"
+                             ToolTip="Time between mouse-down and mouse-up events" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Text="Text step (ms)" />
+                    <TextBox x:Name="TextInputDelayTextBox"
+                             Grid.Row="2"
+                             Grid.Column="3"
+                             Margin="5"
+                             Text="20"
+                             ToolTip="Time between select, clear, complete-value input, decimal separation, and Enter" />
+                    <TextBlock Grid.Row="2"
+                               Grid.Column="4"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="#5B6472"
+                               Text="Raise the specific delay only if clicks or text are missed." />
+
+                    <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Tab settle (ms)" />
+                    <TextBox x:Name="ModeSwitchDelayTextBox" Grid.Row="3" Grid.Column="1" Margin="5" Text="20" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" Text="Build settle (ms)" />
+                    <TextBox x:Name="BuildDelayTextBox" Grid.Row="3" Grid.Column="3" Margin="5" Text="20" />
+
+                    <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="Mouse movement mode" />
+                    <ComboBox x:Name="MouseMovementModeComboBox"
+                              Grid.Row="4"
+                              Grid.Column="1"
+                              Grid.ColumnSpan="2"
+                              Margin="5"
+                              SelectedIndex="0">
+                        <ComboBoxItem Content="Snap + micro-glide" Tag="SnapMicroGlide" />
+                        <ComboBoxItem Content="Full glide (compatibility)" Tag="FullGlide" />
+                    </ComboBox>
+                    <TextBlock Grid.Row="4"
+                               Grid.Column="3"
+                               Grid.ColumnSpan="2"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="#5B6472"
+                               Text="Snaps near the target, then settles exactly over several frames." />
+
+                    <Border Grid.Row="5"
                             Grid.ColumnSpan="5"
                             Margin="0,8,0,0"
                             Padding="8"

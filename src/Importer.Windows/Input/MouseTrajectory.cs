@@ -4,6 +4,30 @@ namespace Importer.Windows.Input;
 
 public static class MouseTrajectory
 {
+    public static PixelPoint CreateApproachPoint(
+        PixelPoint start,
+        PixelPoint target,
+        double offsetPixels)
+    {
+        if (!double.IsFinite(offsetPixels) || offsetPixels < 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offsetPixels));
+        }
+
+        var deltaX = (double)start.X - target.X;
+        var deltaY = (double)start.Y - target.Y;
+        var distance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+        if (distance <= offsetPixels || distance == 0.0)
+        {
+            return start;
+        }
+
+        var scale = offsetPixels / distance;
+        return new PixelPoint(
+            (int)Math.Round(target.X + (deltaX * scale)),
+            (int)Math.Round(target.Y + (deltaY * scale)));
+    }
+
     public static TimeSpan CalculateResponsiveDuration(
         PixelPoint start,
         PixelPoint end,

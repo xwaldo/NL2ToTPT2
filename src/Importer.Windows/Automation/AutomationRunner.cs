@@ -310,9 +310,6 @@ public sealed class AutomationRunner(
             value,
             settings.InputDelay,
             cancellationToken).ConfigureAwait(false);
-        await DelayAtLeastAsync(
-            settings.InputDelay,
-            cancellationToken).ConfigureAwait(false);
         Report(
             state,
             section.SectionIndex,

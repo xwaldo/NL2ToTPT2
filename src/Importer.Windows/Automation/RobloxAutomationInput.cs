@@ -6,7 +6,11 @@ namespace Importer.Windows.Automation;
 
 public sealed class RobloxAutomationInput(
     RobloxWindowLocator windowLocator,
-    WindowsInputSimulator inputSimulator) : IAutomationInput
+    WindowsInputSimulator inputSimulator,
+    MouseMovementMode mouseMovementMode = MouseMovementMode.FullGlide,
+    TimeSpan? textInputDelay = null,
+    TimeSpan? mouseMovementDelay = null,
+    TimeSpan? mouseButtonDelay = null) : IAutomationInput
 {
     private nint _windowHandle;
 
@@ -35,6 +39,9 @@ public sealed class RobloxAutomationInput(
         return inputSimulator.ClickAsync(
             screenPoint,
             inputDelay,
+            mouseMovementMode,
+            mouseMovementDelay ?? inputDelay,
+            mouseButtonDelay ?? TimeSpan.FromMilliseconds(40),
             cancellationToken);
     }
 
@@ -50,6 +57,10 @@ public sealed class RobloxAutomationInput(
             screenPoint,
             value,
             inputDelay,
+            mouseMovementMode,
+            textInputDelay ?? inputDelay,
+            mouseMovementDelay ?? inputDelay,
+            mouseButtonDelay ?? TimeSpan.FromMilliseconds(40),
             cancellationToken);
     }
 

@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -31,7 +32,6 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="140" />
                 <ColumnDefinition Width="160" />
                 <ColumnDefinition Width="170" />
                 <ColumnDefinition Width="Auto" />
@@ -48,22 +48,6 @@
                     Click="SelectFileButton_Click"
                     Content="Select CSV…" />
             <StackPanel Grid.Column="2" Margin="10,0">
-                <CheckBox x:Name="ResampleCheckBox"
-                          Margin="0,0,0,5"
-                          Click="ResampleCheckBox_Click"
-                          Content="Resample points"
-                          IsChecked="False"
-                          ToolTip="Disable to build directly from every point in the CSV export" />
-                <TextBlock Margin="0,0,0,3"
-                           FontSize="11"
-                           Foreground="#5B6472"
-                           Text="Spacing (metres)" />
-                <TextBox x:Name="SpacingTextBox"
-                         IsEnabled="False"
-                         Text="1.0"
-                         ToolTip="Target distance between generated sections" />
-            </StackPanel>
-            <StackPanel Grid.Column="3" Margin="0,0,10,0">
                 <CheckBox x:Name="FullPrecisionCheckBox"
                           Margin="0,0,0,5"
                           Click="FullPrecisionCheckBox_Click"
@@ -78,7 +62,7 @@
                          Text="3.6"
                          ToolTip="Multiplier applied to all generated positions" />
             </StackPanel>
-            <StackPanel Grid.Column="4" Margin="0,0,10,0">
+            <StackPanel Grid.Column="3" Margin="0,0,10,0">
                 <TextBlock Margin="0,0,0,3"
                            FontSize="11"
                            Foreground="#5B6472"
@@ -96,14 +80,14 @@
                            Text="-X left, -Z forward; rot absolute" />
             </StackPanel>
             <Button x:Name="GenerateButton"
-                    Grid.Column="5"
+                    Grid.Column="4"
                     Margin="8,0,0,0"
                     VerticalAlignment="Bottom"
                     Click="GenerateButton_Click"
                     Content="Generate preview"
                     IsDefault="True" />
             <Button x:Name="OpenAutoModeButton"
-                    Grid.Column="6"
+                    Grid.Column="5"
                     VerticalAlignment="Bottom"
                     Click="OpenAutoModeButton_Click"
                     Content="_Auto mode"
@@ -111,6 +95,83 @@
         </Grid>
 
         <Border Grid.Row="2"
+                Margin="0,12,0,0"
+                Padding="10"
+                Background="#EEF7FF"
+                BorderBrush="#8CBCE8"
+                BorderThickness="1"
+                CornerRadius="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Column="0"
+                           Margin="0,0,6,0"
+                           VerticalAlignment="Center"
+                           Foreground="#344054"
+                           Text="Max curve error" />
+                <TextBox x:Name="CurveFitToleranceTextBox"
+                         Grid.Column="1"
+                         Margin="0,0,18,0"
+                         Text="0.50"
+                         ToolTip="Requested maximum distance from the fitted TPT2 curve to the scaled CSV path. The configured hard minimum takes priority." />
+                <TextBlock Grid.Column="2"
+                           Margin="0,0,6,0"
+                           VerticalAlignment="Center"
+                           Foreground="#344054"
+                           Text="Handle factor" />
+                <TextBox x:Name="CurveFitHandleFactorTextBox"
+                         Grid.Column="3"
+                         Margin="0,0,18,0"
+                         Text="0.39"
+                         ToolTip="Measured TPT2 Bezier handle length as a fraction of endpoint distance" />
+                <TextBlock Grid.Column="4"
+                           VerticalAlignment="Center"
+                           Foreground="#5B6472"
+                           Text="Path accuracy can make sections shorter than the target." />
+
+                <TextBlock Grid.Row="1"
+                           Grid.Column="0"
+                           Margin="0,8,6,0"
+                           VerticalAlignment="Center"
+                           Foreground="#344054"
+                           Text="Average target" />
+                <TextBox x:Name="CurveFitTargetLengthTextBox"
+                         Grid.Row="1"
+                         Grid.Column="1"
+                         Margin="0,8,18,0"
+                         Text="15.0"
+                         ToolTip="Desired ordinary section length after position scale, in Roblox game units; actual average can differ for curve accuracy and simplified straights" />
+                <TextBlock Grid.Row="1"
+                           Grid.Column="2"
+                           Margin="0,8,6,0"
+                           VerticalAlignment="Center"
+                           Foreground="#344054"
+                           Text="Hard minimum" />
+                <TextBox x:Name="CurveFitMinimumLengthTextBox"
+                         Grid.Row="1"
+                         Grid.Column="3"
+                         Margin="0,8,18,0"
+                         Text="4.0"
+                         ToolTip="Shortest permitted fitted section after position scale, in Roblox game units; must be at least 4, and increasing it can force larger path error" />
+                <TextBlock Grid.Row="1"
+                           Grid.Column="4"
+                           Margin="0,8,0,0"
+                           VerticalAlignment="Center"
+                           Foreground="#5B6472"
+                           Text="Game units after scale; 95 remains the straight-only maximum." />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3"
                 Margin="0,14,0,10"
                 Padding="10"
                 Background="#FFF4D6"
@@ -119,11 +180,11 @@
                 CornerRadius="4">
             <TextBlock TextWrapping="Wrap"
                        FontWeight="SemiBold"
-                       Text="Start with the highlighted ANCHOR row. Select the existing first node in Roblox and rotate it to the anchor yaw, pitch, and roll before building. Section 1 then builds Point 1 → Point 2. This applies in both World and Previous node modes and helps prevent “track twists too much” warnings." />
+                       Text="Start with the highlighted ANCHOR row. Reset the selected starting section to a straight shape, then rotate the existing first node to the anchor yaw, pitch, and roll before building. Section 1 then builds Point 1 → Point 2. This applies in both World and Previous node modes and helps prevent “track twists too much” warnings." />
         </Border>
 
         <DataGrid x:Name="PreviewDataGrid"
-                  Grid.Row="3"
+                  Grid.Row="4"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
                   CanUserDeleteRows="False"
@@ -157,7 +218,7 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <Grid Grid.Row="4" Margin="0,10,0,0">
+        <Grid Grid.Row="5" Margin="0,10,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -191,15 +252,15 @@
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="1. Prepare NoLimits 2" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
-                               Text="Open the CSV export window. Turn on Center of Rails. Set node spacing to 4 metres or more before exporting. If possible, begin on a straight, grid-aligned right angle so it is easier to place a station. Export the track as a CSV file." />
+                               Text="Open the CSV export window. Turn on Center of Rails. For TPT2 curve fit, use dense source spacing; 0.5 metres is a useful starting point. Dense rows improve curve measurement but do not all become Roblox sections. If possible, begin on a straight, grid-aligned right angle so it is easier to place a station. Export the track as a CSV file." />
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="2. Prepare Roblox" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
-                               Text="Create or select the first track node. This is the anchor: it is Point 1 and will not be built by automation. Open Advanced editor, turn Auto smooth off, and disable every snap option. Set Translation Space to the same mode shown on the Import tab. Previous node is the default. Lower Roblox graphics if the game is lagging." />
+                               Text="Create or select the first track node. This is the anchor: it is Point 1 and will not be built by automation. Reset its section to a straight shape before applying the anchor rotation; this helps avoid track twists too much warnings. Open Advanced editor, turn Auto smooth off, and disable every snap option. Set Translation Space to the same mode shown on the Import tab. Previous node is the default. Lower Roblox graphics if the game is lagging." />
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="3. Generate and review" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
-                               Text="Choose the CSV and select Generate preview. The blue ANCHOR row is Point 1. Rotate the selected Roblox node to the anchor yaw, pitch, and roll exactly as shown. Section 1 will then build Point 1 → Point 2. This anchor step is required in both modes and helps prevent a track twists too much warning. Remember the section count in case you need to restart." />
+                               Text="Choose the CSV and select Generate preview. TPT2 curve fit keeps curved and rolling track around a 15-unit target. Only a detected long straight with near-zero direction and roll rate may use sections up to the hard 95-unit cap. Max curve error is a hard scaled-path tolerance; roll progression is checked separately. The status line reports path and roll error. The blue ANCHOR row is Point 1. Rotate the selected Roblox node to the anchor yaw, pitch, and roll exactly as shown. Section 1 will then build Point 1 → Point 2. This anchor step is required in both modes and helps prevent a track twists too much warning. Remember the section count in case you need to restart." />
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="4. Calibrate Auto mode" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"

@@ -15,13 +15,16 @@ Press **Ctrl+Shift+X** at any time to stop it.
 
 1. Open the CSV export window in NoLimits 2.
 2. Turn on **Center of Rails**.
-3. Set node spacing to **4 metres or more**.
+3. For **TPT2 curve fit**, export densely. Start with node spacing around
+   **0.5 metres**. These rows are reference samples; the importer selects a
+   much smaller set of sections to build.
 4. If possible, start the export on a straight section facing a grid-aligned
    right angle. This makes it easier to place a station on the Roblox grid.
 5. Export the track as a CSV file.
 
-Set the spacing in NoLimits 2 itself before exporting. The importer leaves
-resampling off by default so it can use the exact exported points.
+More source samples let the importer measure the original B-spline accurately
+between candidate TPT2 nodes. They do not force the importer to build every
+exported row.
 
 ## Step 2: Open the CSV in NL2 to TPT2
 
@@ -31,12 +34,22 @@ resampling off by default so it can use the exact exported points.
 4. Leave these recommended defaults unless you have a reason to change them:
    - Position scale: `3.6`
    - Full input precision: on
-   - Resample points: off
+   - Max curve error: `0.50`
+   - Handle factor: `0.39`
+   - Average target length: `15` game units
+   - Hard minimum length: `4` game units
    - Position reference: Previous node axes
 5. Select **Generate preview**.
 
 The preview shows one highlighted blue row followed by the sections that will
-be built.
+be built. Curve fitting is always applied. The status line reports maximum/RMS
+deviation and actual minimum/average/maximum section length. Every fitted
+section is limited to 95 game units. Curved and rolling sections stay near the
+configurable average target. Only a
+detected long straight with near-zero direction and roll rate may use longer
+sections. Fitted sections never go below the configured hard minimum; this
+minimum takes priority if the requested path tolerance would require a shorter
+section. Raising the minimum can therefore increase path error.
 
 ## Step 3: Set up the anchor
 
@@ -46,8 +59,10 @@ this point.
 
 1. In Roblox, select the node where the imported track should begin.
 2. Open the ride's **Advanced editor**.
-3. Find the yaw, pitch, and roll shown in the blue ANCHOR row.
-4. Rotate the selected Roblox node to those exact values.
+3. Reset the selected starting section to a **straight shape**. Do this before
+   applying the anchor rotation to reduce **track twists too much** warnings.
+4. Find the yaw, pitch, and roll shown in the blue ANCHOR row.
+5. Rotate the selected Roblox node to those exact values.
 
 Section 1 builds **Point 1 → Point 2**. Section 2 builds **Point 2 → Point 3**,
 and so on.
@@ -84,13 +99,18 @@ run has to be restarted.
 Calibration is saved automatically, so it normally only needs to be done again
 if the Roblox editor layout or window size changes.
 
-Input/glide starts at `50 ms`. Tab settle and Build delay start at `20 ms`. If
-Roblox misses a click, number, or decimal point, increase the appropriate
-delay:
+The default timing profile uses 50 ms mouse movement, 50 ms target hold, 40 ms
+mouse-button timing, and 20 ms for text, tab, and build settling. If Roblox
+misses input, increase only the relevant setting:
 
-- Increase **Input/glide time** when the cursor misses a textbox.
-- Increase **Tab settle** when a value goes into the wrong group.
-- Increase **Build delay** when the next section starts too quickly.
+- **Mouse movement**: the custom cursor does not finish approaching the target.
+- **Target hold**: the cursor reaches the target but Roblox reacts late.
+- **Mouse button**: clicks or double-click selection are missed.
+- **Text step**: clearing, a number, decimal point, or Enter is missed.
+- **Tab settle**: a value goes into the wrong position/rotation group.
+- **Build settle**: the next section starts before Roblox finishes building.
+
+Start with small increases. Raising every delay multiplies the build time.
 
 ## Step 6: Start building
 

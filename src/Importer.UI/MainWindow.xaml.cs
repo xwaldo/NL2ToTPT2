@@ -42,15 +42,6 @@ public partial class MainWindow : Window
     private async void GenerateButton_Click(object sender, RoutedEventArgs e) =>
         await GeneratePreviewAsync();
 
-    private async void ResampleCheckBox_Click(object sender, RoutedEventArgs e)
-    {
-        UpdateResamplingControls();
-        if (!string.IsNullOrWhiteSpace(FilePathTextBox.Text) && File.Exists(FilePathTextBox.Text))
-        {
-            await GeneratePreviewAsync();
-        }
-    }
-
     private async void FullPrecisionCheckBox_Click(object sender, RoutedEventArgs e)
     {
         if (!string.IsNullOrWhiteSpace(FilePathTextBox.Text) && File.Exists(FilePathTextBox.Text))
@@ -109,20 +100,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        var resamplingEnabled = ResampleCheckBox.IsChecked == true;
         var inputPrecision = FullPrecisionCheckBox.IsChecked == true
             ? InputPrecisionMode.Full
             : InputPrecisionMode.Fixed;
         var positionReference = PositionReferenceComboBox.SelectedIndex == 0
             ? PositionReferenceMode.PreviousNodeAxes
             : PositionReferenceMode.WorldAxes;
-        var spacing = 0.0;
-        if (resamplingEnabled && !TryReadSpacing(out spacing))
+        var curveFitSettings = new Tpt2CurveFitSettings();
+        if (!TryReadCurveFitSettings(out curveFitSettings))
         {
             MessageBox.Show(
                 this,
-                "Spacing must be a positive number, such as 0.5, 1, or 2.",
-                "Invalid spacing",
+                "Curve error, handle factor, average target length, and hard minimum must be positive numbers. " +
+                "The hard minimum must be at least 4 and cannot exceed the average target; " +
+                "the target cannot exceed 95 game units. " +
+                "Recommended starting values are 0.50, 0.39, 15, and 4.",
+                "Invalid curve-fit settings",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
@@ -146,9 +139,14 @@ public partial class MainWindow : Window
             {
                 var parser = new NoLimitsCsvParser();
                 var samples = await parser.ParseFileAsync(path);
-                var selectedSamples = resamplingEnabled
-                    ? new TrackResampler().Resample(samples, spacing)
-                    : samples;
+                var curveFitResult = new Tpt2CurveFitter().Fit(
+                    samples,
+                    ImportConversionProfile.NoLimitsToRoblox,
+                    scale,
+                    curveFitSettings,
+                    inputPrecision);
+                var selectedSamples = curveFitResult.Samples;
+
                 var generator = new SectionGenerator();
                 var anchor = generator.CreateAnchor(
                     selectedSamples,
@@ -164,7 +162,7 @@ public partial class MainWindow : Window
                 return new PreviewResult(
                     samples.Count,
                     selectedSamples.Count,
-                    resamplingEnabled,
+                    curveFitResult.Metrics,
                     anchor,
                     sections,
                     issues);
@@ -177,9 +175,16 @@ public partial class MainWindow : Window
             OpenAutoModeButton.IsEnabled = true;
             var errors = result.Issues.Count(issue => issue.Severity == ValidationSeverity.Error);
             var warnings = result.Issues.Count(issue => issue.Severity == ValidationSeverity.Warning);
-            var pointSummary = result.ResamplingEnabled
-                ? $"{result.SourceCount:N0} source samples → {result.SelectedPointCount:N0} resampled points"
-                : $"{result.SelectedPointCount:N0} exact exported points (resampling off)";
+            var pointSummary =
+                $"{result.SourceCount:N0} source samples → " +
+                $"{result.SelectedPointCount:N0} curve-fit points; " +
+                $"max/RMS error {result.CurveFitMetrics.MaximumDeviation:N3}/" +
+                $"{result.CurveFitMetrics.RootMeanSquareDeviation:N3} game units; " +
+                $"max roll error {result.CurveFitMetrics.MaximumRollDeviation:N2}°; " +
+                $"min/average/max length {result.CurveFitMetrics.MinimumSectionLength:N2}/" +
+                $"{result.CurveFitMetrics.AverageSectionLength:N2}/" +
+                $"{result.CurveFitMetrics.MaximumSectionLength:N2} game units; " +
+                $"{result.CurveFitMetrics.SimplifiedStraightSectionCount:N0} long-straight sections";
             var precisionSummary = inputPrecision == InputPrecisionMode.Full
                 ? "full input precision"
                 : "0.00 / 0.0 input precision";
@@ -224,14 +229,38 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool TryReadSpacing(out double spacing)
-    {
-        return TryReadPositiveNumber(SpacingTextBox.Text, out spacing);
-    }
-
     private bool TryReadScale(out double scale)
     {
         return TryReadPositiveNumber(ScaleTextBox.Text, out scale);
+    }
+
+    private bool TryReadCurveFitSettings(out Tpt2CurveFitSettings settings)
+    {
+        settings = new Tpt2CurveFitSettings();
+        if (!TryReadPositiveNumber(CurveFitToleranceTextBox.Text, out var maximumDeviation) ||
+            !TryReadPositiveNumber(CurveFitHandleFactorTextBox.Text, out var handleFactor) ||
+            !TryReadPositiveNumber(CurveFitTargetLengthTextBox.Text, out var targetLength) ||
+            !TryReadPositiveNumber(CurveFitMinimumLengthTextBox.Text, out var minimumLength) ||
+            minimumLength < settings.MinimumSectionLength ||
+            minimumLength > targetLength ||
+            targetLength > settings.MaximumSectionLength)
+        {
+            return false;
+        }
+
+        var preferredMinimumLength = Math.Clamp(
+            settings.PreferredMinimumSectionLength,
+            minimumLength,
+            targetLength);
+        settings = settings with
+        {
+            MaximumDeviation = maximumDeviation,
+            HandleLengthFactor = handleFactor,
+            TargetSectionLength = targetLength,
+            MinimumSectionLength = minimumLength,
+            PreferredMinimumSectionLength = preferredMinimumLength,
+        };
+        return true;
     }
 
     private static bool TryReadPositiveNumber(string text, out double value)
@@ -246,21 +275,18 @@ public partial class MainWindow : Window
     {
         SelectFileButton.IsEnabled = !busy;
         GenerateButton.IsEnabled = !busy;
-        ResampleCheckBox.IsEnabled = !busy;
         FullPrecisionCheckBox.IsEnabled = !busy;
         PositionReferenceComboBox.IsEnabled = !busy;
-        SpacingTextBox.IsEnabled = !busy && ResampleCheckBox.IsChecked == true;
+        CurveFitToleranceTextBox.IsEnabled = !busy;
+        CurveFitHandleFactorTextBox.IsEnabled = !busy;
+        CurveFitTargetLengthTextBox.IsEnabled = !busy;
+        CurveFitMinimumLengthTextBox.IsEnabled = !busy;
         ScaleTextBox.IsEnabled = !busy;
         BusyProgressBar.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         if (message is not null)
         {
             StatusTextBlock.Text = message;
         }
-    }
-
-    private void UpdateResamplingControls()
-    {
-        SpacingTextBox.IsEnabled = ResampleCheckBox.IsChecked == true;
     }
 
     private static string FormatIssue(ValidationIssue issue)
@@ -272,7 +298,7 @@ public partial class MainWindow : Window
     private sealed record PreviewResult(
         int SourceCount,
         int SelectedPointCount,
-        bool ResamplingEnabled,
+        Tpt2CurveFitMetrics CurveFitMetrics,
         ImportAnchor Anchor,
         IReadOnlyList<Importer.Core.Models.ImportedSection> Sections,
         IReadOnlyList<ValidationIssue> Issues);

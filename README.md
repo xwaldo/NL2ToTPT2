@@ -13,8 +13,9 @@ not require a separate .NET installation.
 
 ## Before using Auto mode
 
-- In NoLimits 2, set node spacing before exporting the CSV. Use **4 metres or
-  more**.
+- For TPT2 curve fitting, export a dense NoLimits CSV. **0.2 metres** is a
+  useful starting point; the dense rows are reference samples and will not all
+  become sections in Roblox.
 - Enable **Center of Rails** in the NoLimits 2 CSV export options.
 - Prefer starting the export on a grid-aligned right angle so the station can
   be built snapped to the Roblox grid.
@@ -36,6 +37,9 @@ See the complete [User Guide](docs/USER_GUIDE.md) before the first live run.
 | Setting | Default |
 | --- | ---: |
 | Position scale | `3.6` |
+| TPT2 curve fit | On |
+| Maximum curve error | `0.50` game units |
+| TPT2 handle factor | `0.39` |
 | Resample points | Off |
 | Full input precision | On |
 | Position reference | Previous node axes |
@@ -89,7 +93,19 @@ See [Known Issues](docs/KNOWN_ISSUES.md) for details and mitigations.
 
 - Parses NoLimits 2 tab-separated CSV exports with position and
   Front/Left/Up vectors.
-- Uses exact exported points by default, with optional resampling.
+- Provides exact-point, fixed-spacing resampling, and TPT2-aware curve-fitting
+  modes.
+- Fits simulated TPT2 cubic sections to the ordered dense CSV path, reports
+  maximum and RMS deviation, preserves the final endpoint, and limits every
+  fitted section to 95 scaled game units.
+- Keeps curved and rolling sections near a 15-game-unit target and checks both
+  centerline and roll interpolation. Only detected long straights with
+  near-zero direction and roll rate may expand toward 95 units.
+- Enforces a hard 4-game-unit minimum and prefers at least 6 units, even when a
+  stricter curve tolerance would otherwise request smaller sections.
+- Measures banking density from continuous orientation-frame twist rather than
+  Euler roll deltas, preventing false short sections near vertical pitch while
+  preserving genuine vertical rolls.
 - Supports world-axis and previous-node position references.
 - Applies configurable position scale and coordinate conversion.
 - Supports full-precision or fixed-precision position and rotation input.
