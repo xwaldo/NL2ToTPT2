@@ -106,6 +106,22 @@ public partial class MainWindow : Window
         var positionReference = PositionReferenceComboBox.SelectedIndex == 0
             ? PositionReferenceMode.PreviousNodeAxes
             : PositionReferenceMode.WorldAxes;
+        if (!TryReadFiniteNumber(YawModificationTextBox.Text, out var yawAngle))
+        {
+            MessageBox.Show(
+                this,
+                "Yaw modification must be a finite angle, such as 0, 45, -90, or 180.",
+                "Invalid yaw modification",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var yawModification = new YawModification(
+            yawAngle,
+            IncrementYawCheckBox.IsChecked == true
+                ? YawModificationMode.Increment
+                : YawModificationMode.SetAnchorExactly);
         var curveFitSettings = new Tpt2CurveFitSettings();
         if (!TryReadCurveFitSettings(out curveFitSettings))
         {
@@ -151,13 +167,15 @@ public partial class MainWindow : Window
                 var anchor = generator.CreateAnchor(
                     selectedSamples,
                     ImportConversionProfile.NoLimitsToRoblox,
-                    inputPrecision: inputPrecision);
+                    inputPrecision: inputPrecision,
+                    yawModification: yawModification);
                 var sections = generator.Generate(
                     selectedSamples,
                     ImportConversionProfile.NoLimitsToRoblox,
                     scale,
                     inputPrecision: inputPrecision,
-                    positionReference: positionReference);
+                    positionReference: positionReference,
+                    yawModification: yawModification);
                 var issues = new ImportPlanValidator().Validate(sections);
                 return new PreviewResult(
                     samples.Count,
@@ -191,10 +209,13 @@ public partial class MainWindow : Window
             var referenceSummary = positionReference == PositionReferenceMode.PreviousNodeAxes
                 ? "previous-node position axes; absolute rotation"
                 : "world position axes; absolute rotation";
+            var yawSummary = yawModification.Mode == YawModificationMode.Increment
+                ? $"yaw increment {AngleMath.Normalize(yawModification.Angle):0.###}°"
+                : $"anchor yaw set to {AngleMath.Normalize(yawModification.Angle):0.###}°";
             StatusTextBlock.Text =
                 $"{Path.GetFileName(path)}: {pointSummary} → " +
                 $"Point 1 is the anchor; {result.Sections.Count:N0} sections begin with Point 1 → Point 2, " +
-                $"{referenceSummary}, {precisionSummary} " +
+                $"{referenceSummary}, {yawSummary}, {precisionSummary} " +
                 $"({warnings:N0} warnings, {errors:N0} errors).";
 
             if (result.Issues.Count > 0)
@@ -271,12 +292,22 @@ public partial class MainWindow : Window
         return parsed && double.IsFinite(value) && value > 0.0;
     }
 
+    private static bool TryReadFiniteNumber(string text, out double value)
+    {
+        var parsed =
+            double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
+            double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        return parsed && double.IsFinite(value);
+    }
+
     private void SetBusy(bool busy, string? message = null)
     {
         SelectFileButton.IsEnabled = !busy;
         GenerateButton.IsEnabled = !busy;
         FullPrecisionCheckBox.IsEnabled = !busy;
         PositionReferenceComboBox.IsEnabled = !busy;
+        YawModificationTextBox.IsEnabled = !busy;
+        IncrementYawCheckBox.IsEnabled = !busy;
         CurveFitToleranceTextBox.IsEnabled = !busy;
         CurveFitHandleFactorTextBox.IsEnabled = !busy;
         CurveFitTargetLengthTextBox.IsEnabled = !busy;

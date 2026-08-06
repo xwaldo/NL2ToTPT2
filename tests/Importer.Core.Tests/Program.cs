@@ -25,6 +25,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Section generation compensates rounded built position", SectionGenerationCompensatesRounding),
     ("Full precision section generation preserves small deltas", FullPrecisionPreservesSmallDeltas),
     ("Section generation applies position scale around the source origin", SectionGenerationAppliesScale),
+    ("Yaw modification rotates positions and sets or increments anchor yaw", YawModificationRotatesTrackAndAnchor),
     ("Point 1 is the anchor and section 1 connects point 1 to point 2", AnchorPrecedesFirstSection),
     ("Previous-node mode expresses position in the preceding rotated axes", PreviousNodeModeUsesRotatedAxes),
     ("Rotation mapping preserves angles until final formatting", RotationMappingPreservesPrecision),
@@ -467,6 +468,79 @@ static Task SectionGenerationAppliesScale()
     AssertNear(2.50, sections[0].EnteredDelta.X);
     AssertNear(1.00, sections[0].EnteredDelta.Y);
     AssertNear(2.00, sections[0].EnteredDelta.Z);
+    return Task.CompletedTask;
+}
+
+static Task YawModificationRotatesTrackAndAnchor()
+{
+    var samples = new[]
+    {
+        Sample(
+            1,
+            Vec3.Zero,
+            front: new Vec3(1, 0, 0),
+            left: new Vec3(0, 0, -1),
+            up: new Vec3(0, 1, 0)),
+        Sample(
+            2,
+            new Vec3(1, 0, 0),
+            front: new Vec3(1, 0, 0),
+            left: new Vec3(0, 0, -1),
+            up: new Vec3(0, 1, 0)),
+    };
+    var generator = new SectionGenerator();
+
+    var exactYaw = new YawModification(
+        0.0,
+        YawModificationMode.SetAnchorExactly);
+    var exactAnchor = generator.CreateAnchor(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        inputPrecision: InputPrecisionMode.Full,
+        yawModification: exactYaw);
+    var exactSection = generator.Generate(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        inputPrecision: InputPrecisionMode.Full,
+        positionReference: PositionReferenceMode.WorldAxes,
+        yawModification: exactYaw)
+        .Single();
+
+    AssertNear(0.0, exactAnchor.Rotation.Yaw);
+    AssertNear(0.0, exactSection.EnteredDelta.X);
+    AssertNear(-1.0, exactSection.EnteredDelta.Z);
+    AssertNear(0.0, exactSection.Rotation.Yaw);
+
+    var incrementYaw = new YawModification(
+        45.0,
+        YawModificationMode.Increment);
+    var incrementAnchor = generator.CreateAnchor(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        inputPrecision: InputPrecisionMode.Full,
+        yawModification: incrementYaw);
+    var incrementSection = generator.Generate(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        inputPrecision: InputPrecisionMode.Full,
+        positionReference: PositionReferenceMode.WorldAxes,
+        yawModification: incrementYaw)
+        .Single();
+
+    AssertNear(135.0, incrementAnchor.Rotation.Yaw);
+    AssertNear(-Math.Sqrt(0.5), incrementSection.EnteredDelta.X);
+    AssertNear(Math.Sqrt(0.5), incrementSection.EnteredDelta.Z);
+    AssertNear(135.0, incrementSection.Rotation.Yaw);
+
+    var previousNodeSection = generator.Generate(
+        samples,
+        ImportConversionProfile.NoLimitsToRoblox,
+        inputPrecision: InputPrecisionMode.Full,
+        positionReference: PositionReferenceMode.PreviousNodeAxes,
+        yawModification: exactYaw)
+        .Single();
+    AssertNear(0.0, previousNodeSection.EnteredDelta.X);
+    AssertNear(-1.0, previousNodeSection.EnteredDelta.Z);
     return Task.CompletedTask;
 }
 

@@ -34,6 +34,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="160" />
                 <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="180" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
@@ -79,15 +80,29 @@
                            Foreground="#5B6472"
                            Text="-X left, -Z forward; rot absolute" />
             </StackPanel>
+            <StackPanel Grid.Column="4" Margin="0,0,10,0">
+                <TextBlock Margin="0,0,0,3"
+                           FontSize="11"
+                           Foreground="#5B6472"
+                           Text="Yaw modification (degrees)" />
+                <TextBox x:Name="YawModificationTextBox"
+                         Text="0"
+                         ToolTip="Yaw applied around Point 1 to the complete imported track" />
+                <CheckBox x:Name="IncrementYawCheckBox"
+                          Margin="0,5,0,0"
+                          Content="Increment existing yaw"
+                          IsChecked="True"
+                          ToolTip="Checked: add this angle to the CSV yaw. Unchecked: set the anchor to this exact yaw." />
+            </StackPanel>
             <Button x:Name="GenerateButton"
-                    Grid.Column="4"
+                    Grid.Column="5"
                     Margin="8,0,0,0"
                     VerticalAlignment="Bottom"
                     Click="GenerateButton_Click"
                     Content="Generate preview"
                     IsDefault="True" />
             <Button x:Name="OpenAutoModeButton"
-                    Grid.Column="5"
+                    Grid.Column="6"
                     VerticalAlignment="Bottom"
                     Click="OpenAutoModeButton_Click"
                     Content="_Auto mode"
@@ -260,7 +275,7 @@
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="3. Generate and review" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
-                               Text="Choose the CSV and select Generate preview. TPT2 curve fit keeps curved and rolling track around a 15-unit target. Only a detected long straight with near-zero direction and roll rate may use sections up to the hard 95-unit cap. Max curve error is a hard scaled-path tolerance; roll progression is checked separately. The status line reports path and roll error. The blue ANCHOR row is Point 1. Rotate the selected Roblox node to the anchor yaw, pitch, and roll exactly as shown. Section 1 will then build Point 1 → Point 2. This anchor step is required in both modes and helps prevent a track twists too much warning. Remember the section count in case you need to restart." />
+                               Text="Choose the CSV and select Generate preview. Yaw modification rotates the entire import around Point 1: keep Increment existing yaw checked to add the angle, or uncheck it to set the anchor to that exact yaw. TPT2 curve fit keeps curved and rolling track around the configured target. Only a detected long straight with near-zero direction and roll rate may use sections up to the hard 95-unit cap. The blue ANCHOR row is Point 1. Rotate the selected Roblox node to its shown yaw, pitch, and roll exactly. Section 1 will then build Point 1 → Point 2. Remember the section count in case you need to restart." />
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="4. Calibrate Auto mode" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"

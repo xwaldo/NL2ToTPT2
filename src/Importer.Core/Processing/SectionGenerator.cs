@@ -12,7 +12,8 @@ public sealed class SectionGenerator
         double positionScale = 1.0,
         Vec3? startingPosition = null,
         InputPrecisionMode inputPrecision = InputPrecisionMode.Fixed,
-        PositionReferenceMode positionReference = PositionReferenceMode.PreviousNodeAxes)
+        PositionReferenceMode positionReference = PositionReferenceMode.PreviousNodeAxes,
+        YawModification? yawModification = null)
     {
         ArgumentNullException.ThrowIfNull(samples);
         ArgumentNullException.ThrowIfNull(conversionProfile);
@@ -38,14 +39,20 @@ public sealed class SectionGenerator
             throw new ArgumentOutOfRangeException(nameof(positionReference));
         }
 
+        var effectiveYawModification = yawModification ?? YawModification.None;
+        effectiveYawModification.Validate();
+
         var anchor = CreateAnchor(
             samples,
             conversionProfile,
             startingPosition,
-            inputPrecision);
+            inputPrecision,
+            effectiveYawModification);
         var orientationConverter = new OrientationConverter(
             conversionProfile.OrientationCoordinates,
             conversionProfile.Rotation);
+        var originalAnchorRotation = orientationConverter.Convert(samples[0]);
+        var yawDelta = effectiveYawModification.ResolveDelta(originalAnchorRotation.Yaw);
         var sourceOrigin = conversionProfile.PositionCoordinates.Map(samples[0].Position);
         var builtPosition = anchor.Position;
         var outputOrigin = builtPosition;
@@ -56,13 +63,16 @@ public sealed class SectionGenerator
             var sample = samples[sampleIndex];
             var desiredPosition =
                 outputOrigin +
-                ((conversionProfile.PositionCoordinates.Map(sample.Position) - sourceOrigin) * positionScale);
+                (RotateWorldYaw(
+                    conversionProfile.PositionCoordinates.Map(sample.Position) - sourceOrigin,
+                    yawDelta) * positionScale);
             var exactWorldDelta = desiredPosition - builtPosition;
             var previousAxes = positionReference == PositionReferenceMode.PreviousNodeAxes
                 ? CreatePositionAxes(
                     samples[sampleIndex - 1],
                     orientationConverter,
-                    inputPrecision)
+                    inputPrecision,
+                    yawDelta)
                 : default;
             var exactDelta = positionReference == PositionReferenceMode.PreviousNodeAxes
                 ? WorldVectorToPreviousNodeInput(previousAxes, exactWorldDelta)
@@ -81,7 +91,7 @@ public sealed class SectionGenerator
                 desiredPosition,
                 enteredDelta,
                 builtPosition,
-                orientationConverter.Convert(sample),
+                ApplyYaw(orientationConverter.Convert(sample), yawDelta),
                 inputPrecision,
                 positionReference));
         }
@@ -93,7 +103,8 @@ public sealed class SectionGenerator
         IReadOnlyList<NoLimitsSample> samples,
         ImportConversionProfile conversionProfile,
         Vec3? startingPosition = null,
-        InputPrecisionMode inputPrecision = InputPrecisionMode.Fixed)
+        InputPrecisionMode inputPrecision = InputPrecisionMode.Fixed,
+        YawModification? yawModification = null)
     {
         ArgumentNullException.ThrowIfNull(samples);
         ArgumentNullException.ThrowIfNull(conversionProfile);
@@ -108,13 +119,17 @@ public sealed class SectionGenerator
         }
 
         conversionProfile.Validate();
+        var effectiveYawModification = yawModification ?? YawModification.None;
+        effectiveYawModification.Validate();
         var orientationConverter = new OrientationConverter(
             conversionProfile.OrientationCoordinates,
             conversionProfile.Rotation);
+        var originalRotation = orientationConverter.Convert(samples[0]);
+        var yawDelta = effectiveYawModification.ResolveDelta(originalRotation.Yaw);
         return new ImportAnchor(
             samples[0].SourceIndex,
             startingPosition ?? Vec3.Zero,
-            orientationConverter.Convert(samples[0]),
+            ApplyYaw(originalRotation, yawDelta),
             inputPrecision);
     }
 
@@ -135,9 +150,10 @@ public sealed class SectionGenerator
     private static OrientationMatrix CreatePositionAxes(
         NoLimitsSample sample,
         OrientationConverter orientationConverter,
-        InputPrecisionMode inputPrecision)
+        InputPrecisionMode inputPrecision,
+        double yawDelta)
     {
-        var rotation = orientationConverter.Convert(sample);
+        var rotation = ApplyYaw(orientationConverter.Convert(sample), yawDelta);
         if (inputPrecision == InputPrecisionMode.Fixed)
         {
             rotation = new EulerAngles(
@@ -147,5 +163,19 @@ public sealed class SectionGenerator
         }
 
         return OrientationMatrix.FromRobloxYawPitchRoll(rotation);
+    }
+
+    private static EulerAngles ApplyYaw(EulerAngles rotation, double yawDelta) =>
+        rotation with { Yaw = AngleMath.Normalize(rotation.Yaw + yawDelta) };
+
+    private static Vec3 RotateWorldYaw(Vec3 value, double yawDegrees)
+    {
+        var radians = yawDegrees * (Math.PI / 180.0);
+        var cosine = Math.Cos(radians);
+        var sine = Math.Sin(radians);
+        return new Vec3(
+            (value.X * cosine) + (value.Z * sine),
+            value.Y,
+            (-value.X * sine) + (value.Z * cosine));
     }
 }

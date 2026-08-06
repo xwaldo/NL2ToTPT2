@@ -38,8 +38,16 @@ exported row.
    - Handle factor: `0.39`
    - Average target length: `15` game units
    - Hard minimum length: `4` game units
+   - Yaw modification: `0`
+   - Increment existing yaw: on
    - Position reference: Previous node axes
 5. Select **Generate preview**.
+
+Yaw modification rotates the entire imported track around Point 1 without
+changing its shape. Leave **Increment existing yaw** checked to add the entered
+angle to the CSV's yaw. Uncheck it to make the entered angle the anchor's exact
+yaw. For example, an original 30-degree anchor with `15` becomes 45 degrees in
+increment mode, while exact mode makes it 15 degrees.
 
 The preview shows one highlighted blue row followed by the sections that will
 be built. Curve fitting is always applied. The status line reports maximum/RMS

@@ -37,6 +37,7 @@ See the complete [User Guide](docs/USER_GUIDE.md) before the first live run.
 | Setting | Default |
 | --- | ---: |
 | Position scale | `3.6` |
+| Yaw modification | `0°` (increment mode) |
 | TPT2 curve fit | On |
 | Maximum curve error | `0.50` game units |
 | TPT2 handle factor | `0.39` |
@@ -108,6 +109,8 @@ See [Known Issues](docs/KNOWN_ISSUES.md) for details and mitigations.
   preserving genuine vertical rolls.
 - Supports world-axis and previous-node position references.
 - Applies configurable position scale and coordinate conversion.
+- Rotates the complete import around Point 1 by a yaw increment or sets the
+  anchor to an exact requested yaw.
 - Supports full-precision or fixed-precision position and rotation input.
 - Previews every relative section and expected built position.
 - Highlights point 1 as the anchor and shows the rotation required before
