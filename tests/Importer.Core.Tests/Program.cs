@@ -14,6 +14,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("CSV parser reads the NoLimits vector schema", CsvParserReadsSchema),
     ("Resampler uses target arc distance and preserves endpoint", ResamplerUsesTargetDistance),
     ("TPT2 curve fitter simplifies only constant-roll straights", CurveFitterSimplifiesStraight),
+    ("TPT2 curve fitter splits sparse straight gaps at their applicable limits", CurveFitterSplitsSparseStraights),
+    ("TPT2 curve fitter still identifies oversized curved CSV gaps", CurveFitterReportsSparseCurve),
     ("TPT2 curve fitter keeps curved sections close to 15 units", CurveFitterKeepsCurvesNearTarget),
     ("TPT2 curve fitter honors configurable target and minimum lengths", CurveFitterHonorsConfiguredLengths),
     ("TPT2 curve fitter ignores Euler noise on a vertical straight", CurveFitterIgnoresVerticalEulerNoise),
@@ -137,6 +139,70 @@ static Task CurveFitterSimplifiesStraight()
         result.Metrics.MaximumDeviation <= settings.MaximumDeviation,
         "The fitted straight must remain within the configured tolerance.");
     return Task.CompletedTask;
+}
+
+static Task CurveFitterSplitsSparseStraights()
+{
+    const double positionScale = 3.6;
+    var profile = ImportConversionProfile.NoLimitsToRoblox;
+    var settings = new Tpt2CurveFitSettings();
+    var start = Sample(1, new Vec3(2, 3, 5));
+
+    foreach (var (sourceGap, sectionCount, sectionLength) in new[]
+    {
+        (10.0, 2, 18.0),
+        (100.0, 4, 90.0),
+    })
+    {
+        var end = start with { SourceIndex = 2, Position = start.Position + start.Front * sourceGap };
+        var result = new Tpt2CurveFitter().Fit([start, end], profile, positionScale, settings);
+        var sections = new SectionGenerator().Generate(
+            result.Samples,
+            profile,
+            positionScale,
+            inputPrecision: InputPrecisionMode.Full);
+
+        AssertEqual(start, result.Samples[0]);
+        AssertEqual(end, result.Samples[^1]);
+        AssertEqual(sectionCount, sections.Count);
+        foreach (var section in sections)
+        {
+            AssertNear(sectionLength, section.EnteredDelta.Length);
+            AssertNear(0.0, (section.ExpectedBuiltPosition - section.DesiredPosition).Length);
+        }
+
+        AssertNear(0.0, result.Metrics.MaximumDeviation);
+    }
+
+    return Task.CompletedTask;
+}
+
+static Task CurveFitterReportsSparseCurve()
+{
+    var samples = new[]
+    {
+        Sample(1, Vec3.Zero),
+        Sample(2, new Vec3(0, 0, 100)),
+        Sample(3, new Vec3(10, 0, 100), front: new Vec3(1, 0, 0), left: new Vec3(0, 0, -1)),
+    };
+
+    try
+    {
+        new Tpt2CurveFitter().Fit(
+            samples,
+            ImportConversionProfile.NoLimitsToRoblox,
+            positionScale: 3.6,
+            new Tpt2CurveFitSettings());
+    }
+    catch (InvalidDataException exception)
+    {
+        AssertTrue(
+            exception.Message.Contains("Adjacent CSV samples 2 and 3", StringComparison.Ordinal),
+            $"Expected the original curved sample pair, received '{exception.Message}'.");
+        return Task.CompletedTask;
+    }
+
+    throw new InvalidOperationException("An oversized gap with a heading change needs more source samples.");
 }
 
 static Task CurveFitterKeepsCurvesNearTarget()

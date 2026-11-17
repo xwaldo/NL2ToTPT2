@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+Fixed FVD CSV imports by adding support for long straight sections.
+
 ## 0.1.0
 
 First public release.

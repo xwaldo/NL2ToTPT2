@@ -68,7 +68,7 @@ public sealed class TrackResampler
         return result;
     }
 
-    private static NoLimitsSample Interpolate(
+    internal static NoLimitsSample Interpolate(
         NoLimitsSample start,
         NoLimitsSample end,
         double amount) =>

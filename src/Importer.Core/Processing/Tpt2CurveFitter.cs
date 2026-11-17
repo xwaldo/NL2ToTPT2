@@ -50,7 +50,16 @@ public sealed class Tpt2CurveFitter
             throw new InvalidDataException("The track has no measurable length after scaling.");
         }
 
-        var selectedSegments = SelectSegments(targetSamples, settings);
+        var straightRuns = DetectStraightRuns(targetSamples, settings, out var straightEdges);
+        var expandedSamples = ExpandStraightGaps(samples, targetSamples, straightEdges, straightRuns, settings);
+        if (expandedSamples is not null)
+        {
+            samples = expandedSamples;
+            targetSamples = ConvertSamples(samples, conversionProfile, positionScale, inputPrecision);
+            straightRuns = DetectStraightRuns(targetSamples, settings, out _);
+        }
+
+        var selectedSegments = SelectSegments(targetSamples, straightRuns, settings);
         var selectedIndexes = new List<int>(selectedSegments.Count + 1)
         {
             selectedSegments[0].StartIndex,
@@ -131,6 +140,7 @@ public sealed class Tpt2CurveFitter
             }
 
             result[index] = new TargetSample(
+                sample.SourceIndex,
                 position,
                 orientation.Forward.Normalized(),
                 accumulatedTwist,
@@ -141,11 +151,56 @@ public sealed class Tpt2CurveFitter
         return result;
     }
 
-    private static List<SelectedSegment> SelectSegments(
-        IReadOnlyList<TargetSample> samples,
+    private static List<NoLimitsSample>? ExpandStraightGaps(
+        IReadOnlyList<NoLimitsSample> samples,
+        IReadOnlyList<TargetSample> targetSamples,
+        IReadOnlyList<bool> straightEdges,
+        IReadOnlyList<StraightRun> straightRuns,
         Tpt2CurveFitSettings settings)
     {
-        var straightRuns = DetectStraightRuns(samples, settings);
+        List<NoLimitsSample>? expanded = null;
+        var runIndex = 0;
+        for (var index = 0; index < straightEdges.Count; index++)
+        {
+            while (runIndex < straightRuns.Count && straightRuns[runIndex].EndIndex <= index)
+            {
+                runIndex++;
+            }
+
+            var isInStraightRun = runIndex < straightRuns.Count && straightRuns[runIndex].StartIndex <= index;
+            var start = targetSamples[index];
+            var end = targetSamples[index + 1];
+            var gap = (end.Position - start.Position).Length;
+            var maximumLength = MaximumLength(isInStraightRun, settings);
+            if (straightEdges[index] && gap > maximumLength + 1e-9 &&
+                Math.Abs(end.AccumulatedTwist - start.AccumulatedTwist) <= settings.MaximumRollChange)
+            {
+                // Use equal pieces so a straight just over the limit doesn't leave a short tail.
+                var partCount = Math.Ceiling(gap / maximumLength);
+                expanded ??= samples.Take(index + 1).ToList();
+                var remainingOriginalSamples = samples.Count - index - 1;
+                if (partCount - 1 > Array.MaxLength - expanded.Count - remainingOriginalSamples)
+                {
+                    throw new InvalidDataException("The straight gap is too large to subdivide. Check the CSV coordinates and position scale.");
+                }
+
+                for (var part = 1; part < partCount; part++)
+                {
+                    expanded.Add(TrackResampler.Interpolate(samples[index], samples[index + 1], part / partCount));
+                }
+            }
+
+            expanded?.Add(samples[index + 1]);
+        }
+
+        return expanded;
+    }
+
+    private static List<SelectedSegment> SelectSegments(
+        IReadOnlyList<TargetSample> samples,
+        IReadOnlyList<StraightRun> straightRuns,
+        Tpt2CurveFitSettings settings)
+    {
         var result = new List<SelectedSegment>();
         var currentIndex = 0;
 
@@ -186,9 +241,10 @@ public sealed class Tpt2CurveFitter
 
     private static IReadOnlyList<StraightRun> DetectStraightRuns(
         IReadOnlyList<TargetSample> samples,
-        Tpt2CurveFitSettings settings)
+        Tpt2CurveFitSettings settings,
+        out bool[] straightEdges)
     {
-        var straightEdges = new bool[samples.Count - 1];
+        straightEdges = new bool[samples.Count - 1];
         for (var index = 0; index < straightEdges.Length; index++)
         {
             var start = samples[index];
@@ -333,10 +389,7 @@ public sealed class Tpt2CurveFitter
         ICollection<SelectedSegment> result)
     {
         var evaluation = EvaluateSegment(samples, startIndex, endIndex, settings);
-        var maximumLength = isStraightRun
-            ? settings.MaximumSectionLength
-            : settings.TargetSectionLength *
-              settings.PreferredMaximumAdjacentLengthRatio;
+        var maximumLength = MaximumLength(isStraightRun, settings);
         if (IsValid(evaluation, maximumLength, settings))
         {
             result.Add(new SelectedSegment(startIndex, endIndex, isStraightRun));
@@ -348,7 +401,7 @@ public sealed class Tpt2CurveFitter
             if (evaluation.ChordLength > maximumLength + 1e-9)
             {
                 throw new InvalidDataException(
-                    $"Adjacent CSV samples {startIndex + 1:N0} and {endIndex + 1:N0} " +
+                    $"Adjacent CSV samples {samples[startIndex].SourceIndex:N0} and {samples[endIndex].SourceIndex:N0} " +
                     $"are {evaluation.ChordLength:N3} game units apart, above the " +
                     $"{maximumLength:N3}-unit limit. Export a denser CSV.");
             }
@@ -1292,6 +1345,7 @@ public sealed class Tpt2CurveFitter
     }
 
     private readonly record struct TargetSample(
+        int SourceIndex,
         Vec3 Position,
         Vec3 Forward,
         double AccumulatedTwist,
