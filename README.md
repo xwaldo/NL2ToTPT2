@@ -59,7 +59,9 @@ Live mode waits three seconds so you can switch to Roblox. Once it starts:
 
 - do not touch the keyboard or mouse;
 - watch the track editor for warnings or missed input; and
-- press **Ctrl+Shift+X** at any time to stop globally.
+- press the emergency stop shortcut shown in Auto mode at any time. It defaults
+  to **Ctrl+Shift+X**. If Windows cannot register it, choose another key and
+  select **Apply shortcut** before starting.
 
 If a run fails, note the last successfully built section in the log, correct or
 remove any partial section, dismiss any Roblox warning, and restart using

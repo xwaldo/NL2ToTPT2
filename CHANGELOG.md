@@ -2,7 +2,8 @@
 
 ## 0.3.1
 
-Fixed FVD CSV imports by adding support for long straight sections.
+Fixed FVD CSV imports with long straight sections and added a configurable
+emergency stop shortcut.
 
 ## 0.1.0
 

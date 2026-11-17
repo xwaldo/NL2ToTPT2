@@ -1,4 +1,7 @@
+using System.ComponentModel;
 using System.Globalization;
+using System.IO;
+using System.Security;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -9,11 +12,15 @@ using Importer.Windows.Calibration;
 using Importer.Windows.Hotkeys;
 using Importer.Windows.Input;
 using Importer.Windows.Windowing;
+using Microsoft.Win32;
 
 namespace Importer.UI;
 
 public partial class AutomationWindow : Window
 {
+    private const string PreferencesKey = @"HKEY_CURRENT_USER\Software\NL2ToTPT2";
+    private const string EmergencyHotkeyPreference = "EmergencyHotkey";
+
     private readonly IReadOnlyList<ImportedSection> _sections;
     private readonly ImportAnchor _anchor;
     private readonly Dictionary<CalibrationTarget, NormalizedPoint> _calibration = [];
@@ -25,7 +32,6 @@ public partial class AutomationWindow : Window
     private HwndSource? _windowSource;
     private CancellationTokenSource? _automationCancellation;
     private AutomationRunner? _automationRunner;
-    private bool _hotkeyAvailable;
     private bool _captureInProgress;
 
     public AutomationWindow(ImportAnchor anchor, IReadOnlyList<ImportedSection> sections)
@@ -51,24 +57,76 @@ public partial class AutomationWindow : Window
         _windowSource = HwndSource.FromHwnd(windowHandle);
         _windowSource.AddHook(WindowMessageHook);
 
+        EmergencyHotkeyComboBox.ItemsSource = Enum.GetValues<EmergencyHotkeyKey>();
+        var preferredKey = LoadEmergencyHotkey();
+        EmergencyHotkeyComboBox.SelectedItem = preferredKey;
+        TryRegisterEmergencyHotkey(windowHandle, preferredKey);
+    }
+
+    private EmergencyHotkeyKey LoadEmergencyHotkey()
+    {
         try
         {
-            _emergencyHotkey = EmergencyHotkey.Register(windowHandle);
-            _hotkeyAvailable = true;
-            AppendLog($"Emergency hotkey registered: {EmergencyHotkey.DisplayName}.");
+            if (Registry.GetValue(PreferencesKey, EmergencyHotkeyPreference, null) is string saved &&
+                Enum.TryParse<EmergencyHotkeyKey>(saved, out var key) && Enum.IsDefined(key))
+            {
+                return key;
+            }
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is IOException or SecurityException or UnauthorizedAccessException)
         {
-            _hotkeyAvailable = false;
-            AppendLog($"Emergency hotkey unavailable: {exception.Message}");
-            MessageBox.Show(
-                this,
-                $"{exception.Message}{Environment.NewLine}{Environment.NewLine}" +
-                "Dry-run remains available, but live automation is disabled.",
-                "Emergency hotkey unavailable",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            AppendLog($"Could not load the emergency shortcut: {exception.Message}");
         }
+
+        return EmergencyHotkeyKey.X;
+    }
+
+    private void ApplyEmergencyHotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_automationCancellation is not null ||
+            EmergencyHotkeyComboBox.SelectedItem is not EmergencyHotkeyKey key ||
+            !TryRegisterEmergencyHotkey(new WindowInteropHelper(this).Handle, key))
+        {
+            return;
+        }
+
+        try
+        {
+            Registry.SetValue(PreferencesKey, EmergencyHotkeyPreference, key.ToString());
+        }
+        catch (Exception exception) when (exception is IOException or SecurityException or UnauthorizedAccessException)
+        {
+            EmergencyHotkeyStatusTextBlock.Text = "Shortcut active for this session. Windows could not save it.";
+            AppendLog($"Could not save the emergency shortcut: {exception.Message}");
+        }
+    }
+
+    private bool TryRegisterEmergencyHotkey(nint windowHandle, EmergencyHotkeyKey key)
+    {
+        if (_emergencyHotkey?.Key != key)
+        {
+            try
+            {
+                var replacement = EmergencyHotkey.Register(windowHandle, key);
+                _emergencyHotkey?.Dispose();
+                _emergencyHotkey = replacement;
+                AppendLog($"Emergency hotkey registered: {replacement.DisplayName}.");
+            }
+            catch (Win32Exception exception)
+            {
+                var activeStatus = _emergencyHotkey is null
+                    ? "Dry-run is available."
+                    : $"{_emergencyHotkey.DisplayName} is still active.";
+                EmergencyHotkeyStatusTextBlock.Text =
+                    $"Could not register Ctrl+Shift+{key}. Choose another key and select Apply shortcut. {activeStatus}";
+                AppendLog($"Could not register Ctrl+Shift+{key}: {exception.Message}");
+                return false;
+            }
+        }
+
+        EmergencyHotkeyTextBlock.Text = $"Emergency stop: Ctrl+Shift+{key}";
+        EmergencyHotkeyStatusTextBlock.Text = string.Empty;
+        return true;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -153,18 +211,21 @@ public partial class AutomationWindow : Window
         }
 
         ControlCalibration? calibration = null;
+        string? emergencyHotkeyName = null;
         if (!settings.DryRun)
         {
-            if (!_hotkeyAvailable)
+            if (_emergencyHotkey is not { } emergencyHotkey)
             {
                 MessageBox.Show(
                     this,
-                    "Live automation requires the Ctrl+Shift+X emergency hotkey.",
+                    "Choose an available emergency stop key and select Apply shortcut before starting live automation.",
                     "Emergency hotkey required",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;
             }
+
+            emergencyHotkeyName = emergencyHotkey.DisplayName;
 
             calibration = BuildCalibration();
             if (calibration is null)
@@ -202,7 +263,7 @@ public partial class AutomationWindow : Window
                 $"{Environment.NewLine}" +
                 "Do not use the mouse or keyboard during automation. Watch for editor warnings." +
                 $"{Environment.NewLine}{Environment.NewLine}" +
-                $"Emergency stop: {EmergencyHotkey.DisplayName}",
+                $"Emergency stop: {emergencyHotkeyName}",
                 "Start live automation?",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
@@ -239,9 +300,9 @@ public partial class AutomationWindow : Window
 
         try
         {
-            if (!settings.DryRun)
+            if (emergencyHotkeyName is not null)
             {
-                await RunLiveStartCountdownAsync(_automationCancellation.Token);
+                await RunLiveStartCountdownAsync(emergencyHotkeyName, _automationCancellation.Token);
             }
 
             await _automationRunner.RunAsync(
@@ -285,7 +346,7 @@ public partial class AutomationWindow : Window
         $"Pitch {AngleMath.FormatRotation(rotation.Pitch, precision)}, " +
         $"Roll {AngleMath.FormatRotation(rotation.Roll, precision)}";
 
-    private async Task RunLiveStartCountdownAsync(CancellationToken cancellationToken)
+    private async Task RunLiveStartCountdownAsync(string emergencyHotkeyName, CancellationToken cancellationToken)
     {
         const int countdownSeconds = 3;
         AutomationStateTextBlock.Text = "Starting live automation";
@@ -294,7 +355,7 @@ public partial class AutomationWindow : Window
         for (var remaining = countdownSeconds; remaining > 0; remaining--)
         {
             AutomationMessageTextBlock.Text =
-                $"Switch to Roblox now. Starting in {remaining}… Emergency stop: {EmergencyHotkey.DisplayName}.";
+                $"Switch to Roblox now. Starting in {remaining}… Emergency stop: {emergencyHotkeyName}.";
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
     }
@@ -361,9 +422,9 @@ public partial class AutomationWindow : Window
         nint longParameter,
         ref bool handled)
     {
-        if (EmergencyHotkey.IsEmergencyMessage(message, wordParameter))
+        if (_emergencyHotkey is { } hotkey && hotkey.IsEmergencyMessage(message, wordParameter))
         {
-            EmergencyStop($"{EmergencyHotkey.DisplayName} pressed.");
+            EmergencyStop($"{hotkey.DisplayName} pressed.");
             handled = true;
         }
 
@@ -604,6 +665,8 @@ public partial class AutomationWindow : Window
         MouseMovementModeComboBox.IsEnabled = !running;
         StartSectionTextBox.IsEnabled = !running;
         DryRunCheckBox.IsEnabled = !running;
+        EmergencyHotkeyComboBox.IsEnabled = !running;
+        ApplyEmergencyHotkeyButton.IsEnabled = !running;
         ClearSavedCalibrationButton.IsEnabled = !running;
         SetCalibrationButtonsEnabled(!running);
         if (!running)

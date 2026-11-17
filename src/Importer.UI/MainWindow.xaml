@@ -283,7 +283,7 @@
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="5. Run and watch" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
-                               Text="Leave Start at section set to 1 for a new build. Press Start, read the final checklist, and switch to Roblox during the three-second countdown. Do not touch the keyboard or mouse while it runs. Watch the track. Press Ctrl+Shift+X immediately if something is wrong." />
+                               Text="Leave Start at section set to 1 for a new build. Press Start, read the final checklist, and switch to Roblox during the three-second countdown. Do not touch the keyboard or mouse while it runs. Watch the track. Press the emergency stop shortcut shown in Auto mode immediately if something is wrong." />
 
                     <TextBlock FontSize="17" FontWeight="SemiBold" Text="6. Recover from a failure" />
                     <TextBlock Margin="0,7,0,16" TextWrapping="Wrap"
@@ -333,7 +333,7 @@
 
                     <TextBlock FontSize="16" FontWeight="SemiBold" Text="Editor warnings interrupt automation" />
                     <TextBlock Margin="0,5,0,14" TextWrapping="Wrap"
-                               Text="Warnings such as track twists too much, track too short, or track too long can take focus and stop the editor listening to text input. Later inputs will then go to the wrong place. Watch the run and cancel with Ctrl+Shift+X as soon as a warning appears." />
+                               Text="Warnings such as track twists too much, track too short, or track too long can take focus and stop the editor listening to text input. Later inputs will then go to the wrong place. Watch the run and use the emergency stop shortcut as soon as a warning appears." />
 
                     <TextBlock FontSize="16" FontWeight="SemiBold" Text="Blueprint section limits" />
                     <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"

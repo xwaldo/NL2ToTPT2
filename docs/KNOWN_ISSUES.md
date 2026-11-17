@@ -49,7 +49,8 @@ Mitigations:
 - Increase only the relevant Auto mode timing: mouse movement, target hold,
   mouse button, text step, tab settle, or build settle.
 - Keep Roblox visible and use windowed or borderless-windowed mode.
-- Supervise the run and use **Ctrl+Shift+X** when anything is wrong.
+- Supervise the run and use the emergency stop shortcut shown in Auto mode when
+  anything is wrong.
 
 ## Editor warnings interrupt text input
 

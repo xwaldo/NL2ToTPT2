@@ -9,7 +9,8 @@ programming.
 The importer controls your real mouse and keyboard. Stay at the computer and
 watch the build. Do not touch the mouse or keyboard while it is working.
 
-Press **Ctrl+Shift+X** at any time to stop it.
+Press the emergency stop shortcut shown in Auto mode at any time to stop it.
+The default is **Ctrl+Shift+X**.
 
 ## Step 1: Export the track from NoLimits 2
 
@@ -107,6 +108,10 @@ run has to be restarted.
 Calibration is saved automatically, so it normally only needs to be done again
 if the Roblox editor layout or window size changes.
 
+If Windows cannot register the emergency stop shortcut, choose another key in
+Auto mode and select **Apply shortcut**. The app saves the shortcut once Windows
+registers it. The active shortcut appears in the start confirmation.
+
 The default timing profile uses 50 ms mouse movement, 50 ms target hold, 40 ms
 mouse-button timing, and 20 ms for text, tab, and build settling. If Roblox
 misses input, increase only the relevant setting:
@@ -132,12 +137,12 @@ Start with small increases. Raising every delay multiplies the build time.
 7. Watch the track continuously.
 
 If Roblox shows **track twists too much**, **track too short**, or **track too
-long**, press **Ctrl+Shift+X** immediately. These messages can stop the game
-from accepting later numbers.
+long**, press the active emergency stop shortcut immediately. These messages can
+stop the game from accepting later numbers.
 
 ## Step 7: Continue after a failure
 
-1. Press **Ctrl+Shift+X**.
+1. Press the active emergency stop shortcut.
 2. Read the import log and find the last section that completed.
 3. Dismiss any Roblox warning.
 4. Remove or correct the unfinished section.

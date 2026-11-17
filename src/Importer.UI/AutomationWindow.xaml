@@ -36,11 +36,29 @@
                     BorderThickness="1"
                     CornerRadius="4">
                 <StackPanel>
-                    <TextBlock FontSize="16"
+                    <TextBlock x:Name="EmergencyHotkeyTextBlock"
+                               FontSize="16"
                                FontWeight="Bold"
                                Foreground="#B42318"
-                               Text="Emergency stop: Ctrl+Shift+X" />
+                               Text="Emergency stop shortcut" />
+                    <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                        <Label Padding="0,0,4,0"
+                               VerticalAlignment="Center"
+                               Content="Ctrl+Shift+"
+                               Target="{Binding ElementName=EmergencyHotkeyComboBox}" />
+                        <ComboBox x:Name="EmergencyHotkeyComboBox"
+                                  Width="62"
+                                  AutomationProperties.Name="Emergency stop key after Ctrl+Shift" />
+                        <Button x:Name="ApplyEmergencyHotkeyButton"
+                                Margin="8,0,0,0"
+                                Click="ApplyEmergencyHotkeyButton_Click"
+                                Content="_Apply shortcut" />
+                    </StackPanel>
+                    <TextBlock x:Name="EmergencyHotkeyStatusTextBlock"
+                               Margin="0,3,0,0"
+                               TextWrapping="Wrap" />
                     <TextBlock Margin="0,3,0,0"
+                               TextWrapping="Wrap"
                                Text="This global shortcut stops automation without sending Undo. The Stop button remains available too." />
                 </StackPanel>
             </Border>

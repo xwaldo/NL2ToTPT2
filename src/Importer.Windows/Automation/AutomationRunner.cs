@@ -33,7 +33,7 @@ public sealed class AutomationRunner(
                 AutomationState.Paused,
                 _currentProgress.CurrentSection,
                 _currentProgress.TotalSections,
-                "Paused. Use Resume to continue or Ctrl+Shift+X to stop.");
+                "Paused. Use Resume to continue or Stop to end the run.");
         }
     }
 

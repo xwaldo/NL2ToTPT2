@@ -1,48 +1,56 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using Importer.Windows.Native;
 
 namespace Importer.Windows.Hotkeys;
 
 public sealed class EmergencyHotkey : IDisposable
 {
-    private const int Identifier = 0x4E4C;
+    private const int IdentifierBase = 0x4E00;
     private const uint ModifierControl = 0x0002;
     private const uint ModifierShift = 0x0004;
     private const uint ModifierNoRepeat = 0x4000;
-    private const uint VirtualKeyX = 0x58;
 
     private readonly nint _windowHandle;
+    private readonly int _identifier;
     private bool _disposed;
 
-    private EmergencyHotkey(nint windowHandle)
+    private EmergencyHotkey(nint windowHandle, EmergencyHotkeyKey key)
     {
         _windowHandle = windowHandle;
+        Key = key;
+        _identifier = IdentifierBase + (int)key;
         if (!NativeMethods.RegisterHotKey(
                 windowHandle,
-                Identifier,
+                _identifier,
                 ModifierControl | ModifierShift | ModifierNoRepeat,
-                VirtualKeyX))
+                (uint)key))
         {
-            throw new Win32Exception(
-                "Could not register Ctrl+Shift+X as the emergency stop. Another application may already use it.");
+            throw new Win32Exception(Marshal.GetLastPInvokeError());
         }
     }
 
-    public const string DisplayName = "Ctrl+Shift+X";
+    public EmergencyHotkeyKey Key { get; }
 
-    public static EmergencyHotkey Register(nint windowHandle)
+    public string DisplayName => $"Ctrl+Shift+{Key}";
+
+    public static EmergencyHotkey Register(nint windowHandle, EmergencyHotkeyKey key)
     {
         if (windowHandle == nint.Zero)
         {
             throw new ArgumentException("A valid window handle is required.", nameof(windowHandle));
         }
 
-        return new EmergencyHotkey(windowHandle);
+        if (!Enum.IsDefined(key))
+        {
+            throw new ArgumentOutOfRangeException(nameof(key));
+        }
+
+        return new EmergencyHotkey(windowHandle, key);
     }
 
-    public static bool IsEmergencyMessage(int message, nint wordParameter) =>
-        message == NativeMethods.WmHotkey &&
-        wordParameter == Identifier;
+    public bool IsEmergencyMessage(int message, nint wordParameter) =>
+        !_disposed && message == NativeMethods.WmHotkey && wordParameter == _identifier;
 
     public void Dispose()
     {
@@ -51,7 +59,7 @@ public sealed class EmergencyHotkey : IDisposable
             return;
         }
 
-        _ = NativeMethods.UnregisterHotKey(_windowHandle, Identifier);
+        _ = NativeMethods.UnregisterHotKey(_windowHandle, _identifier);
         _disposed = true;
     }
 }
